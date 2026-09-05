@@ -26,6 +26,7 @@ NON nel file .env che rimane solo per il tuo PC):
 | ADMIN_PASSWORD    | Una password a tua scelta               |
 | API_KEY           | Una chiave lunga/complessa a tua scelta |
 | SECRET_KEY        | Una stringa casuale lunga               |
+| MAX_UPLOAD_MB        | 25                                     |
 
 ⚠️ La API_KEY qui deve essere IDENTICA a quella che poi userai nello script
 locale (`pubblica_da_yupoo.py` -> file `.env` nella root del progetto,
@@ -67,4 +68,3 @@ Poi lancia normalmente:
 
 Lo script scaricherà da Yupoo, pulirà le immagini e le pubblicherà
 automaticamente sul sito online.
-

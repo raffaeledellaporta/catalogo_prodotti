@@ -38,7 +38,9 @@ class Config:
     # Cartella dove vengono salvate le immagini caricate (sia da upload
     # manuale via admin, sia da upload automatico via API dallo scraper).
     UPLOAD_FOLDER = BASE_DIR / "static" / "uploads"
-    MAX_CONTENT_LENGTH = 200 * 1024 * 1024  # 200 MB per richiesta
+    # Keep individual requests small enough for reverse proxies. The browser
+    # importer sends larger selections as multiple requests.
+    MAX_CONTENT_LENGTH = int(os.environ.get("MAX_UPLOAD_MB", "25")) * 1024 * 1024
 
     # Password per accedere alla pagina di amministrazione (upload manuale).
     ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin123")
@@ -46,4 +48,3 @@ class Config:
     # Chiave richiesta dallo script locale (yupoo_scraper.py + image_cleaner.py)
     # per pubblicare automaticamente i prodotti via API (POST /api/prodotti).
     API_KEY = os.environ.get("API_KEY", "cambia-questa-api-key")
-

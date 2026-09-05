@@ -1,13 +1,18 @@
 {% extends "base.html" %}
 {% block title %}{{ product.name }} - {{ site_name }}{% endblock %}
 {% block content %}
-<p><a href="{{ url_for('index') }}">&larr; Torna al catalogo</a></p>
-<h1>{{ product.name }}</h1>
+<a class="back-link" href="{{ url_for('index') }}">&larr; Torna al catalogo</a>
+<header class="product-heading">
+    <p class="eyebrow">{{ product.category.name if product.category else 'Exclusive gear' }}</p>
+    <h1>{{ product.name }}</h1>
+    <p>{{ product.images|length }} immagini</p>
+</header>
 
 <div class="product-gallery">
     {% for image in product.images %}
-    <img src="{{ url_for('static', filename='uploads/' ~ image.filename) }}" alt="{{ product.name }} - foto {{ loop.index }}">
+    <figure>
+        <img src="{{ url_for('static', filename='uploads/' ~ image.filename) }}" alt="{{ product.name }} - foto {{ loop.index }}" loading="lazy">
+    </figure>
     {% endfor %}
 </div>
 {% endblock %}
-

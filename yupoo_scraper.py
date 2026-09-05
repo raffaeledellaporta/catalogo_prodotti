@@ -4,9 +4,9 @@ yupoo_scraper.py
 
 Scraper per cataloghi Yupoo.
 
-Per ogni prodotto (album) trovato, scarica TUTTE le foto di quel prodotto
-(le diverse angolazioni), ognuna alla risoluzione ORIGINALE più alta
-disponibile (attributo `data-origin-src` delle pagine Yupoo).
+Per ogni prodotto (album) trovato, scarica SEMPRE tutte le foto (le diverse
+angolazioni), anche quando i file hanno nomi già presenti, alla risoluzione
+ORIGINALE più alta disponibile (attributo `data-origin-src` delle pagine Yupoo).
 
 Funziona sia con:
   - link di RICERCA/CATALOGO Yupoo, che elencano più album/prodotti,
@@ -274,13 +274,9 @@ def _guess_extension(url: str, content_type: str | None = None) -> str:
 
 
 def download_product_photos(
-    session: requests.Session, product: Product, dest_dir: Path, skip_existing: bool = True
+    session: requests.Session, product: Product, dest_dir: Path
 ) -> Product:
     dest_dir.mkdir(parents=True, exist_ok=True)
-
-    if skip_existing and any(dest_dir.iterdir()):
-        print(f"[SKIP] '{product.name}' -> cartella già presente e non vuota: {dest_dir}")
-        return product
 
     for photo in product.photos:
         try:
@@ -366,6 +362,8 @@ def scrape_yupoo_link(yupoo_url: str, output_dir: str = "download") -> list[Prod
             print(f"[WARN] Nessuna foto trovata per '{product.name}', salto.")
             continue
 
+        # La struttura resta leggibile per categoria e nome prodotto.
+        # I file vengono comunque riscaricati e sovrascritti se già presenti.
         dest_dir = base_out / _slugify(product.name)
         download_product_photos(session, product, dest_dir)
         products.append(product)
@@ -430,4 +428,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

@@ -1,9 +1,31 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>Catalogo prodotti</h1>
+<section class="catalog-hero">
+    <p class="eyebrow">Exclusive selection</p>
+    <h1>{{ selected_subcategory.name if selected_subcategory else (selected_category.name if selected_category else 'Catalogo prodotti') }}</h1>
+    <p>{% if selected_subcategory %}Esplora {{ selected_subcategory.name }} nella selezione {{ selected_category.name }}.{% elif selected_category %}Esplora la selezione {{ selected_category.name }}.{% else %}Una selezione curata di sneakers e apparel per uno stile autentico e distintivo.{% endif %}</p>
+</section>
+
+{% if site_categories %}
+<nav class="category-nav" aria-label="Categorie del catalogo">
+    <a class="{{ 'active' if not selected_category else '' }}" href="{{ url_for('index') }}">Tutte le categorie</a>
+    {% for category in site_categories %}
+    <a class="{{ 'active' if selected_category and selected_category.id == category.id else '' }}" href="{{ url_for('index', category_slug=category.slug) }}">{{ category.name }} <span>{{ category.products|length }}</span></a>
+    {% endfor %}
+</nav>
+{% endif %}
+
+{% if selected_category and selected_category.subcategories %}
+<nav class="subcategory-nav" aria-label="Modelli {{ selected_category.name }}">
+    <a class="{{ 'active' if not selected_subcategory else '' }}" href="{{ url_for('index', category_slug=selected_category.slug) }}">Tutti i modelli</a>
+    {% for subcategory in selected_category.subcategories %}
+    <a class="{{ 'active' if selected_subcategory and selected_subcategory.id == subcategory.id else '' }}" href="{{ url_for('index', category_slug=selected_category.slug, subcategory_slug=subcategory.slug) }}">{{ subcategory.name }} <span>{{ subcategory.products|length }}</span></a>
+    {% endfor %}
+</nav>
+{% endif %}
 
 {% if not products %}
-    <p class="empty-state">Nessun prodotto pubblicato ancora. Vai nella sezione <a href="{{ url_for('admin_upload') }}">Admin</a> per aggiungerne uno.</p>
+    <p class="empty-state">{% if selected_category %}Non ci sono ancora prodotti in questa categoria. <a href="{{ url_for('index') }}">Vedi tutto il catalogo</a>.{% else %}Nessun prodotto pubblicato ancora. Vai nella sezione <a href="{{ url_for('admin_upload') }}">Admin</a> per aggiungerne uno.{% endif %}</p>
 {% else %}
 <div class="product-grid">
     {% for product in products %}
@@ -14,11 +36,13 @@
         {% else %}
             <div class="no-image">Nessuna immagine</div>
         {% endif %}
-        <div class="product-card-name">{{ product.name }}</div>
-        <div class="product-card-count">{{ product.images|length }} foto</div>
+        <div class="product-card-content">
+            {% if product.category %}<div class="product-card-category">{{ product.category.name }}{% if product.subcategory %} &middot; {{ product.subcategory.name }}{% endif %}</div>{% endif %}
+            <div class="product-card-name">{{ product.name }}</div>
+            <div class="product-card-count">{{ product.images|length }} foto <span>&rarr;</span></div>
+        </div>
     </a>
     {% endfor %}
 </div>
 {% endif %}
 {% endblock %}
-

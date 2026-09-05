@@ -1,12 +1,100 @@
 {% extends "base.html" %}
 {% block title %}Admin - {{ site_name }}{% endblock %}
 {% block content %}
-<h1>Amministrazione</h1>
-<p><a href="{{ url_for('admin_logout') }}">Esci</a></p>
+<header class="admin-heading">
+    <div>
+        <p class="eyebrow">Area riservata</p>
+        <h1>Amministrazione</h1>
+        <p>Pubblica prodotti e gestisci singolarmente le foto del catalogo.</p>
+    </div>
+    <a class="btn-secondary" href="{{ url_for('admin_logout') }}">Esci</a>
+</header>
+
+<section class="admin-categories" id="categorie">
+    <div class="section-title">
+        <div>
+            <p class="eyebrow">Organizzazione catalogo</p>
+            <h2>Categorie</h2>
+        </div>
+        <span>{{ categories|length }} create</span>
+    </div>
+    <p>Crea le tue collezioni, ad esempio “Scarpe Nike”, “Scarpe Adidas” o “New Balance”.</p>
+    <form method="post" action="{{ url_for('admin_create_category') }}" class="category-form">
+        <input type="text" name="name" maxlength="100" required placeholder="Nome nuova categoria">
+        <button type="submit">Crea categoria</button>
+    </form>
+    {% if categories %}
+    <div class="admin-category-list">
+        {% for category in categories %}
+        <div class="admin-category-chip">
+            <a href="{{ url_for('index', category_slug=category.slug) }}" target="_blank">{{ category.name }} <span>{{ category.products|length }} prodotti</span></a>
+            <form method="post" action="{{ url_for('admin_delete_category', category_id=category.id) }}" onsubmit="return confirm('Eliminare questa categoria? I prodotti non verranno eliminati.');">
+                <button type="submit" class="btn-category-delete" aria-label="Elimina categoria {{ category.name }}">&times;</button>
+            </form>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</section>
+
+<section class="admin-subcategories" id="sottocategorie">
+    <div class="section-title">
+        <div>
+            <p class="eyebrow">Navigazione di secondo livello</p>
+            <h2>Modelli</h2>
+        </div>
+        <span>{{ subcategory_count }} creati</span>
+    </div>
+    <p>Crea i modelli all’interno di ogni categoria, ad esempio “Nike Dunk Low” in “Scarpe Nike”.</p>
+    <form method="post" action="{{ url_for('admin_create_subcategory') }}" class="category-form">
+        <select name="category_id" required {% if not categories %}disabled{% endif %}>
+            <option value="">Scegli la categoria</option>
+            {% for category in categories %}
+            <option value="{{ category.id }}">{{ category.name }}</option>
+            {% endfor %}
+        </select>
+        <input type="text" name="name" maxlength="100" required placeholder="Nome modello">
+        <button type="submit">Crea modello</button>
+    </form>
+    {% for category in categories if category.subcategories %}
+    <div class="subcategory-group">
+        <h3>{{ category.name }}</h3>
+        <div class="admin-category-list">
+            {% for subcategory in category.subcategories %}
+            <div class="admin-category-chip">
+                <a href="{{ url_for('index', category_slug=category.slug, subcategory_slug=subcategory.slug) }}" target="_blank">{{ subcategory.name }} <span>{{ subcategory.products|length }} prodotti</span></a>
+                <form method="post" action="{{ url_for('admin_delete_subcategory', subcategory_id=subcategory.id) }}" onsubmit="return confirm('Eliminare questo modello? I prodotti resteranno nella categoria principale.');">
+                    <button type="submit" class="btn-category-delete" aria-label="Elimina modello {{ subcategory.name }}">&times;</button>
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+</section>
 
 <section class="admin-upload">
     <h2>Pubblica un nuovo prodotto</h2>
-    <form method="post" enctype="multipart/form-data" class="upload-form">
+    <p>Se il nome esiste già, le immagini attuali verranno sostituite e la categoria aggiornata.</p>
+    <form method="post" enctype="multipart/form-data" class="upload-form" id="product-upload-form">
+        <label>Categoria
+            <select name="category_id" required {% if not categories %}disabled{% endif %}>
+                <option value="">{% if categories %}Seleziona una categoria{% else %}Crea prima una categoria{% endif %}</option>
+                {% for category in categories %}
+                <option value="{{ category.id }}">{{ category.name }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>Modello (facoltativo)
+            <select name="subcategory_id">
+                <option value="">Nessun modello</option>
+                {% for category in categories %}
+                    {% for subcategory in category.subcategories %}
+                    <option value="{{ subcategory.id }}">{{ category.name }} — {{ subcategory.name }}</option>
+                    {% endfor %}
+                {% endfor %}
+            </select>
+        </label>
         <label>Nome prodotto
             <input type="text" name="name" required placeholder="Es. Air Jordan 1 Low AJ1 DC0774-162">
         </label>
@@ -17,37 +105,291 @@
     </form>
 </section>
 
+<section class="admin-folder-import" id="importa-cartelle">
+    <p class="eyebrow">Importazione rapida</p>
+    <h2>Pubblica da cartelle</h2>
+    <p>Seleziona tutte le cartelle che vuoi caricare: puoi aggiungerle una alla volta e pubblicarle insieme nella categoria scelta.</p>
+    <form method="post" action="{{ url_for('admin_import_folders') }}" enctype="multipart/form-data" class="upload-form" id="folder-import-form">
+        <label>Categoria
+            <select name="category_id" required {% if not categories %}disabled{% endif %}>
+                <option value="">Seleziona una categoria</option>
+                {% for category in categories %}
+                <option value="{{ category.id }}">{{ category.name }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>Modello (facoltativo)
+            <select name="subcategory_id">
+                <option value="">Nessun modello</option>
+                {% for category in categories %}
+                    {% for subcategory in category.subcategories %}
+                    <option value="{{ subcategory.id }}">{{ category.name }} — {{ subcategory.name }}</option>
+                    {% endfor %}
+                {% endfor %}
+            </select>
+        </label>
+        <div id="folder-pickers" class="folder-pickers">
+            <div class="folder-picker">
+                <label>Cartella immagini 1
+                    <input type="file" name="folders" accept="image/*" webkitdirectory directory multiple required>
+                </label>
+                <span class="folder-picker-summary" aria-live="polite">Nessuna cartella selezionata</span>
+            </div>
+        </div>
+        <button type="button" id="add-folder-picker" class="btn-secondary">+ Aggiungi un'altra cartella</button>
+        <button type="submit">Importa e pubblica cartelle</button>
+        <p id="folder-import-progress" class="folder-import-progress" aria-live="polite"></p>
+    </form>
+</section>
+
 <section class="admin-list">
     <h2>Prodotti pubblicati ({{ products|length }})</h2>
     {% if not products %}
         <p>Nessun prodotto ancora.</p>
     {% else %}
-    <table class="admin-table">
-        <thead>
-            <tr><th>Immagine</th><th>Nome</th><th>Foto</th><th>Pubblicato</th><th></th></tr>
-        </thead>
-        <tbody>
-        {% for product in products %}
-            <tr>
-                <td>
-                    {% set cover = product.cover_image() %}
-                    {% if cover %}
-                        <img class="admin-thumb" src="{{ url_for('static', filename='uploads/' ~ cover.filename) }}" alt="">
-                    {% endif %}
-                </td>
-                <td><a href="{{ url_for('product_detail', slug=product.slug) }}" target="_blank">{{ product.name }}</a></td>
-                <td>{{ product.images|length }}</td>
-                <td>{{ product.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
-                <td>
-                    <form method="post" action="{{ url_for('admin_delete', product_id=product.id) }}" onsubmit="return confirm('Eliminare questo prodotto?');">
-                        <button type="submit" class="btn-danger">Elimina</button>
-                    </form>
-                </td>
-            </tr>
-        {% endfor %}
-        </tbody>
-    </table>
+    <div class="admin-products">
+    {% for product in products %}
+        <article class="admin-product" id="product-{{ product.id }}">
+            <div class="admin-product-header">
+                <div>
+                    <h3><a href="{{ url_for('product_detail', slug=product.slug) }}" target="_blank">{{ product.name }}</a></h3>
+                    <p>{{ product.images|length }} foto &middot; Pubblicato il {{ product.created_at.strftime('%d/%m/%Y alle %H:%M') }}</p>
+                </div>
+                <form method="post" action="{{ url_for('admin_delete', product_id=product.id) }}" onsubmit="return confirm('Eliminare il prodotto e tutte le sue foto?');">
+                    <button type="submit" class="btn-danger">Elimina prodotto</button>
+                </form>
+            </div>
+            <form method="post" action="{{ url_for('admin_assign_category', product_id=product.id) }}" class="product-category-form">
+                <label>Categoria del prodotto
+                    <select name="category_id" onchange="this.form.requestSubmit()">
+                        <option value="">Senza categoria</option>
+                        {% for category in categories %}
+                        <option value="{{ category.id }}" {% if product.category_id == category.id %}selected{% endif %}>{{ category.name }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label>Modello
+                    <select name="subcategory_id">
+                        <option value="">Nessun modello</option>
+                        {% for category in categories %}
+                            {% for subcategory in category.subcategories %}
+                            <option value="{{ subcategory.id }}" {% if product.subcategory_id == subcategory.id %}selected{% endif %}>{{ category.name }} — {{ subcategory.name }}</option>
+                            {% endfor %}
+                        {% endfor %}
+                    </select>
+                </label>
+                <button type="submit">Aggiorna categoria</button>
+            </form>
+
+            <div class="admin-image-grid">
+                {% for image in product.images %}
+                <div class="admin-image">
+                    <img src="{{ url_for('static', filename='uploads/' ~ image.filename) }}" alt="{{ product.name }} - foto {{ loop.index }}" loading="lazy">
+                    <div class="admin-image-actions">
+                        <span>Foto {{ loop.index }}{% if loop.first %} &middot; copertina{% endif %}</span>
+                        <form method="post" action="{{ url_for('admin_delete_image', image_id=image.id) }}" onsubmit="return confirm('Eliminare solo questa foto?');">
+                            <button type="submit" class="btn-image-delete" {% if product.images|length == 1 %}disabled title="Non puoi eliminare l'ultima foto"{% endif %}>Elimina foto</button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </article>
+    {% endfor %}
+    </div>
     {% endif %}
 </section>
-{% endblock %}
+<script>
+    (() => {
+        const pickers = document.getElementById("folder-pickers");
+        const addButton = document.getElementById("add-folder-picker");
+        const productForm = document.getElementById("product-upload-form");
+        const importForm = document.getElementById("folder-import-form");
+        const progress = document.getElementById("folder-import-progress");
+        // Stay well below the body-size limit applied by hosting proxies.
+        const maxBatchBytes = 20 * 1024 * 1024;
 
+        async function sendProductBatches(form, files, progress, appendField) {
+            const batches = [];
+            let batch = [];
+            let batchSize = 0;
+            files.forEach((file) => {
+                if (batch.length && batchSize + file.size > maxBatchBytes) {
+                    batches.push(batch);
+                    batch = [];
+                    batchSize = 0;
+                }
+                batch.push(file);
+                batchSize += file.size;
+            });
+            if (batch.length) {
+                batches.push(batch);
+            }
+
+            for (let index = 0; index < batches.length; index += 1) {
+                progress.textContent = `Caricamento blocco ${index + 1} di ${batches.length}...`;
+                const data = new FormData();
+                data.append("name", form.elements.name.value);
+                data.append("category_id", form.elements.category_id.value);
+                data.append("subcategory_id", form.elements.subcategory_id.value);
+                data.append(appendField, index > 0 ? "1" : "0");
+                batches[index].forEach((file) => data.append("images", file, file.name));
+                const response = await fetch(form.action, { method: "POST", body: data });
+                if (!response.ok) {
+                    throw new Error(
+                        response.status === 413
+                            ? "Un file supera il limite massimo di caricamento."
+                            : `Errore del server (${response.status}).`
+                    );
+                }
+            }
+        }
+
+        productForm.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const files = Array.from(productForm.elements.images.files);
+            const progress = document.createElement("p");
+            progress.className = "folder-import-progress";
+            productForm.appendChild(progress);
+            const submitButton = productForm.querySelector('button[type="submit"]');
+            submitButton.disabled = true;
+            try {
+                await sendProductBatches(productForm, files, progress, "append");
+                window.location.assign("{{ url_for('admin_upload') }}");
+            } catch (error) {
+                progress.textContent = error.message;
+                submitButton.disabled = false;
+            }
+        });
+
+        function updatePickerNumbers() {
+            pickers.querySelectorAll(".folder-picker").forEach((picker, index) => {
+                picker.querySelector("label").firstChild.textContent = `Cartella immagini ${index + 1} `;
+            });
+        }
+
+        function updateSummary(input) {
+            const summary = input.closest(".folder-picker").querySelector(".folder-picker-summary");
+            if (!input.files.length) {
+                summary.textContent = "Nessuna cartella selezionata";
+                return;
+            }
+
+            const relativePath = input.files[0].webkitRelativePath || input.files[0].name;
+            const folderName = relativePath.split("/")[0];
+            summary.textContent = `${folderName}: ${input.files.length} immagini selezionate`;
+        }
+
+        function bindPicker(picker) {
+            picker.querySelector('input[type="file"]').addEventListener("change", (event) => {
+                updateSummary(event.currentTarget);
+            });
+
+            const removeButton = picker.querySelector(".remove-folder-picker");
+            if (removeButton) {
+                removeButton.addEventListener("click", () => {
+                    picker.remove();
+                    updatePickerNumbers();
+                });
+            }
+        }
+
+        bindPicker(pickers.querySelector(".folder-picker"));
+        addButton.addEventListener("click", () => {
+            const picker = document.createElement("div");
+            picker.className = "folder-picker";
+            picker.innerHTML = `
+                <label>Cartella immagini
+                    <input type="file" name="folders" accept="image/*" webkitdirectory directory multiple>
+                </label>
+                <span class="folder-picker-summary" aria-live="polite">Nessuna cartella selezionata</span>
+                <button type="button" class="remove-folder-picker">Rimuovi</button>
+            `;
+            pickers.appendChild(picker);
+            bindPicker(picker);
+            updatePickerNumbers();
+            picker.querySelector('input[type="file"]').click();
+        });
+
+        importForm.addEventListener("submit", async (event) => {
+            event.preventDefault();
+
+            const files = Array.from(
+                importForm.querySelectorAll('input[name="folders"]')
+            ).flatMap((input) => Array.from(input.files));
+
+            if (!files.length) {
+                progress.textContent = "Seleziona almeno una cartella.";
+                return;
+            }
+
+            const productGroups = new Map();
+            files.forEach((file) => {
+                const path = file.webkitRelativePath || file.name;
+                const parts = path.split("/").filter(Boolean);
+                const productName = parts.length > 1 ? parts[parts.length - 2] : parts[0];
+                if (!productGroups.has(productName)) {
+                    productGroups.set(productName, []);
+                }
+                productGroups.get(productName).push(file);
+            });
+
+            const batches = [];
+            productGroups.forEach((group) => {
+                let groupBatch = [];
+                let groupBatchSize = 0;
+                let part = 0;
+                group.forEach((file) => {
+                    if (groupBatch.length && groupBatchSize + file.size > maxBatchBytes) {
+                        batches.push({ files: groupBatch, append: part > 0 });
+                        part += 1;
+                        groupBatch = [];
+                        groupBatchSize = 0;
+                    }
+                    groupBatch.push(file);
+                    groupBatchSize += file.size;
+                });
+                if (groupBatch.length) {
+                    batches.push({ files: groupBatch, append: part > 0 });
+                }
+            });
+
+            const submitButton = importForm.querySelector('button[type="submit"]');
+            submitButton.disabled = true;
+            addButton.disabled = true;
+
+            try {
+                for (let index = 0; index < batches.length; index += 1) {
+                    progress.textContent = `Caricamento blocco ${index + 1} di ${batches.length}...`;
+                    const data = new FormData();
+                    data.append("category_id", importForm.elements.category_id.value);
+                    data.append("subcategory_id", importForm.elements.subcategory_id.value);
+                    data.append("append", batches[index].append ? "1" : "0");
+                    batches[index].files.forEach((file) => {
+                        data.append("folders", file, file.webkitRelativePath || file.name);
+                    });
+
+                    const response = await fetch(importForm.action, {
+                        method: "POST",
+                        body: data,
+                    });
+                    if (!response.ok) {
+                        throw new Error(
+                            response.status === 413
+                                ? "Un singolo prodotto supera il limite massimo di caricamento."
+                                : `Errore del server (${response.status}).`
+                        );
+                    }
+                }
+
+                progress.textContent = "Importazione completata.";
+                window.location.assign("{{ url_for('admin_upload') }}");
+            } catch (error) {
+                progress.textContent = error.message;
+                submitButton.disabled = false;
+                addButton.disabled = false;
+            }
+        });
+    })();
+</script>
+{% endblock %}

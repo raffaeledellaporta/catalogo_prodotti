@@ -5,12 +5,13 @@ pubblica_da_yupoo.py
 Script "tutto in uno" da eseguire in LOCALE sul tuo PC. Per ogni link Yupoo
 che incolli:
 
-  1. Scarica tutte le foto di ogni prodotto (album), alla risoluzione più
-     alta (yupoo_scraper.py)
+  1. Scarica sempre tutte le foto di ogni prodotto (album), alla risoluzione
+     più alta, anche se esistono file con lo stesso nome (yupoo_scraper.py)
   2. Rimuove le scritte cinesi da ogni foto con OCR + inpainting
      (image_cleaner.py)
   3. Pubblica automaticamente il prodotto sul sito vetrina, chiamando la
-     API POST /api/prodotti (Opzione B: upload automatico)
+     API POST /api/prodotti. Una categoria scelta una sola volta viene
+     applicata a tutti i prodotti del link.
 
 Uso:
     python pubblica_da_yupoo.py
@@ -44,7 +45,9 @@ RAW_DIR = "download"
 CLEAN_DIR = "pulito"
 
 
-def publish_product(product: ys.Product, raw_dir: Path, clean_dir: Path) -> bool:
+def publish_product(
+    product: ys.Product, raw_dir: Path, clean_dir: Path, category_name: str | None = None
+) -> bool:
     """Pulisce le foto di un prodotto e le pubblica sul sito. Ritorna True
     se la pubblicazione è andata a buon fine."""
     print(f"\n[PULIZIA] '{product.name}' ({len(product.saved_files)} foto)...")
@@ -70,7 +73,11 @@ def publish_product(product: ys.Product, raw_dir: Path, clean_dir: Path) -> bool
             open_handles.append(handle)
             files_payload.append(("images", (f.name, handle, "image/jpeg")))
 
-        data = {"name": product.name, "source_url": product.album_url}
+        data = {
+            "name": product.name,
+            "source_url": product.album_url,
+            "category": category_name or "",
+        }
         headers = {"X-API-KEY": API_KEY}
 
         resp = requests.post(
@@ -96,7 +103,7 @@ def publish_product(product: ys.Product, raw_dir: Path, clean_dir: Path) -> bool
     return False
 
 
-def process_link(yupoo_url: str) -> None:
+def process_link(yupoo_url: str, category_name: str | None = None) -> None:
     products = ys.scrape_yupoo_link(yupoo_url, output_dir=RAW_DIR)
 
     if not products:
@@ -113,7 +120,7 @@ def process_link(yupoo_url: str) -> None:
         rel = raw_dir.relative_to(RAW_DIR)
         clean_dir = Path(CLEAN_DIR) / rel
 
-        if publish_product(product, raw_dir, clean_dir):
+        if publish_product(product, raw_dir, clean_dir, category_name):
             published += 1
 
     print(f"\n[RIEPILOGO] {published}/{len(products)} prodotto/i pubblicato/i sul sito.")
@@ -124,6 +131,7 @@ def _interactive_loop() -> None:
     print("Pubblicazione automatica da Yupoo al sito vetrina")
     print(f"Sito di destinazione: {SITE_API_URL}")
     print("Incolla un link Yupoo (catalogo/ricerca o singolo album/prodotto).")
+    print("Dopo il link scegli una categoria: verrà creata automaticamente se non esiste.")
     print("Scrivi 'exit', 'quit' o 'q' per uscire.")
     print("=" * 70)
 
@@ -143,8 +151,10 @@ def _interactive_loop() -> None:
             print("[WARN] Il link non sembra un link Yupoo valido, riprova.")
             continue
 
+        category = input("Categoria per questi prodotti (Invio = senza categoria)> ").strip()
+
         try:
-            process_link(link)
+            process_link(link, category or None)
         except Exception as exc:  # noqa: BLE001
             print(f"[ERRORE] Errore inatteso: {exc}")
 
@@ -157,4 +167,3 @@ if __name__ == "__main__":
         process_link(link)
 
     _interactive_loop()
-

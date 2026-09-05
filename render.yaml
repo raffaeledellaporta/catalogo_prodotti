@@ -24,4 +24,5 @@ services:
         sync: false
       - key: SECRET_KEY
         generateValue: true
-
+      - key: MAX_UPLOAD_MB
+        value: 25
