@@ -1,0 +1,9 @@
+# Dipendenze SOLO per il sito vetrina (Render.com).
+# Le librerie pesanti (OCR/inpainting/scraping) restano nel requirements.txt
+# della root, perché girano solo in locale sul tuo PC, mai sul server online.
+
+Flask>=3.0
+Flask-SQLAlchemy>=3.1
+python-dotenv>=1.0
+gunicorn>=21.2
+

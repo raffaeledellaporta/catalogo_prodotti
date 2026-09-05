@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Admin - {{ site_name }}{% endblock %}
+{% block content %}
+<h1>Amministrazione</h1>
+<p><a href="{{ url_for('admin_logout') }}">Esci</a></p>
+
+<section class="admin-upload">
+    <h2>Pubblica un nuovo prodotto</h2>
+    <form method="post" enctype="multipart/form-data" class="upload-form">
+        <label>Nome prodotto
+            <input type="text" name="name" required placeholder="Es. Air Jordan 1 Low AJ1 DC0774-162">
+        </label>
+        <label>Immagini (puoi selezionarne più di una)
+            <input type="file" name="images" accept="image/*" multiple required>
+        </label>
+        <button type="submit">Pubblica</button>
+    </form>
+</section>
+
+<section class="admin-list">
+    <h2>Prodotti pubblicati ({{ products|length }})</h2>
+    {% if not products %}
+        <p>Nessun prodotto ancora.</p>
+    {% else %}
+    <table class="admin-table">
+        <thead>
+            <tr><th>Immagine</th><th>Nome</th><th>Foto</th><th>Pubblicato</th><th></th></tr>
+        </thead>
+        <tbody>
+        {% for product in products %}
+            <tr>
+                <td>
+                    {% set cover = product.cover_image() %}
+                    {% if cover %}
+                        <img class="admin-thumb" src="{{ url_for('static', filename='uploads/' ~ cover.filename) }}" alt="">
+                    {% endif %}
+                </td>
+                <td><a href="{{ url_for('product_detail', slug=product.slug) }}" target="_blank">{{ product.name }}</a></td>
+                <td>{{ product.images|length }}</td>
+                <td>{{ product.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                <td>
+                    <form method="post" action="{{ url_for('admin_delete', product_id=product.id) }}" onsubmit="return confirm('Eliminare questo prodotto?');">
+                        <button type="submit" class="btn-danger">Elimina</button>
+                    </form>
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+</section>
+{% endblock %}
+

@@ -1,0 +1,11 @@
+venv/
+__pycache__/
+*.pyc
+.env
+webapp/.env
+webapp/catalogo.db
+webapp/static/uploads/
+download/
+pulito/
+*.egg-info/
+

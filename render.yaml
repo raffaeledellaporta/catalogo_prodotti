@@ -1,0 +1,27 @@
+# render.yaml
+# ============
+# File di configurazione "Infrastructure as Code" per Render.com.
+# Se Render lo rileva nella root del repository, propone automaticamente
+# questa configurazione quando crei il Web Service (in alternativa puoi
+# anche impostare tutto manualmente dalla dashboard, vedi ISTRUZIONI_DEPLOY.md).
+
+services:
+  - type: web
+    name: catalogo-prodotti
+    runtime: python
+    plan: free
+    rootDir: webapp
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn wsgi:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.0
+      - key: SITE_NAME
+        value: EG EXCLUSIVE GEAR
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: API_KEY
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
+

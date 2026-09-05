@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Accesso admin - {{ site_name }}{% endblock %}
+{% block content %}
+<h1>Accesso amministratore</h1>
+<form method="post" class="login-form">
+    <label>Password
+        <input type="password" name="password" required autofocus>
+    </label>
+    <button type="submit">Accedi</button>
+</form>
+{% endblock %}
+

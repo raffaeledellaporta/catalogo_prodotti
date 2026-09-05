@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Catalogo prodotti</h1>
+
+{% if not products %}
+    <p class="empty-state">Nessun prodotto pubblicato ancora. Vai nella sezione <a href="{{ url_for('admin_upload') }}">Admin</a> per aggiungerne uno.</p>
+{% else %}
+<div class="product-grid">
+    {% for product in products %}
+    <a class="product-card" href="{{ url_for('product_detail', slug=product.slug) }}">
+        {% set cover = product.cover_image() %}
+        {% if cover %}
+            <img src="{{ url_for('static', filename='uploads/' ~ cover.filename) }}" alt="{{ product.name }}">
+        {% else %}
+            <div class="no-image">Nessuna immagine</div>
+        {% endif %}
+        <div class="product-card-name">{{ product.name }}</div>
+        <div class="product-card-count">{{ product.images|length }} foto</div>
+    </a>
+    {% endfor %}
+</div>
+{% endif %}
+{% endblock %}
+
