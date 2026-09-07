@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
+    <div class="scroll-progress" aria-hidden="true"></div>
     <header class="site-header">
         <a href="{{ url_for('index') }}" class="brand" aria-label="{{ site_name }} - Home">
             <img class="brand-logo" src="{{ url_for('static', filename='logo-exclusive-gear.png') }}" alt="Logo {{ site_name }}">
@@ -39,5 +40,61 @@
         <img src="{{ url_for('static', filename='logo-exclusive-gear.png') }}" alt="" aria-hidden="true">
         <p>&copy; {{ site_name }} &middot; Selezione esclusiva</p>
     </footer>
+    <button class="back-to-top" type="button" aria-label="Torna in cima alla pagina" hidden>&uarr;</button>
+    <script>
+        (() => {
+            const scrollProgress = document.querySelector(".scroll-progress");
+            const backToTop = document.querySelector(".back-to-top");
+            const updateScrollControls = () => {
+                const maximumScroll = document.documentElement.scrollHeight - window.innerHeight;
+                const progress = maximumScroll > 0 ? (window.scrollY / maximumScroll) * 100 : 0;
+                scrollProgress.style.transform = `scaleX(${progress / 100})`;
+                backToTop.hidden = window.scrollY < 480;
+            };
+
+            window.addEventListener("scroll", updateScrollControls, { passive: true });
+            window.addEventListener("resize", updateScrollControls);
+            backToTop.addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
+            updateScrollControls();
+
+            document.querySelectorAll("img.media-image").forEach((image) => {
+                const container = image.closest(".product-card, .category-showcase-card, .product-gallery figure");
+                if (!container) {
+                    return;
+                }
+
+                const markLoaded = () => container.classList.remove("is-loading");
+                container.classList.add("is-loading");
+                if (image.complete && image.naturalWidth) {
+                    markLoaded();
+                } else {
+                    image.addEventListener("load", markLoaded, { once: true });
+                    image.addEventListener("error", markLoaded, { once: true });
+                }
+            });
+
+            const lightbox = document.querySelector(".image-lightbox");
+            if (!lightbox || !lightbox.showModal) {
+                return;
+            }
+
+            const lightboxImage = lightbox.querySelector("img");
+            const closeLightbox = () => lightbox.close();
+            document.querySelectorAll("[data-lightbox-image]").forEach((button) => {
+                button.addEventListener("click", () => {
+                    const image = button.querySelector("img");
+                    lightboxImage.src = image.currentSrc || image.src;
+                    lightboxImage.alt = image.alt;
+                    lightbox.showModal();
+                });
+            });
+            lightbox.querySelector("[data-close-lightbox]").addEventListener("click", closeLightbox);
+            lightbox.addEventListener("click", (event) => {
+                if (event.target === lightbox) {
+                    closeLightbox();
+                }
+            });
+        })();
+    </script>
 </body>
 </html>

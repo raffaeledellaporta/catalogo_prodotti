@@ -69,6 +69,8 @@ def create_app(config_class=Config) -> Flask:
         category = None
         subcategory = None
         products_query = Product.query
+        search_query = request.args.get("q", "").strip()
+        page = max(request.args.get("page", 1, type=int), 1)
 
         if category_slug:
             category = Category.query.filter_by(slug=category_slug).first_or_404()
@@ -79,10 +81,18 @@ def create_app(config_class=Config) -> Flask:
                 ).first_or_404()
                 products_query = products_query.filter_by(subcategory_id=subcategory.id)
 
-        products = products_query.order_by(Product.created_at.desc()).all()
+        if search_query:
+            products_query = products_query.filter(Product.name.ilike(f"%{search_query}%"))
+
+        products = products_query.order_by(Product.created_at.desc()).paginate(
+            page=page,
+            per_page=app.config["PRODUCTS_PER_PAGE"],
+            error_out=False,
+        )
         return render_template(
             "index.html",
             products=products,
+            search_query=search_query,
             selected_category=category,
             selected_subcategory=subcategory,
         )
@@ -178,6 +188,42 @@ def create_app(config_class=Config) -> Flask:
 
         return redirect(url_for("admin_upload", _anchor="categorie"))
 
+    @app.route("/admin/modelli", methods=["POST"])
+    @login_required
+    def admin_create_model():
+        name = request.form.get("name", "").strip()
+        category_id = request.form.get("category_id", type=int)
+        subcategory_id = request.form.get("subcategory_id", type=int)
+        category = db.session.get(Category, category_id) if category_id else None
+
+        if category is None:
+            flash("Seleziona la macro-categoria del modello.", "error")
+        elif not name:
+            flash("Inserisci il nome del modello.", "error")
+        else:
+            subcategory = _validate_subcategory(category, subcategory_id)
+            if subcategory is None:
+                flash("Seleziona la micro-categoria del modello.", "error")
+            else:
+                slug = _slugify(name)
+                if Product.query.filter_by(slug=slug).first():
+                    flash("Esiste già un modello con questo nome.", "error")
+                else:
+                    db.session.add(
+                        Product(
+                            name=name,
+                            slug=slug,
+                            category=category,
+                            subcategory=subcategory,
+                        )
+                    )
+                    db.session.commit()
+                    flash(
+                        f"Modello '{name}' creato in '{category.name} → {subcategory.name}'.",
+                        "success",
+                    )
+        return redirect(url_for("admin_upload", _anchor="modelli"))
+
     @app.route("/admin/sottocategorie", methods=["POST"])
     @login_required
     def admin_create_subcategory():
@@ -252,7 +298,10 @@ def create_app(config_class=Config) -> Flask:
         product.subcategory = _validate_subcategory(category, subcategory_id) if category else None
         db.session.commit()
         if category:
-            flash(f"'{product.name}' assegnato a '{category.name}'.", "success")
+            destination = category.name
+            if product.subcategory:
+                destination = f"{destination} → {product.subcategory.name}"
+            flash(f"'{product.name}' spostato in '{destination}'.", "success")
         else:
             flash(f"Categoria rimossa da '{product.name}'.", "success")
         return redirect(url_for("admin_upload", _anchor=f"product-{product.id}"))
@@ -262,35 +311,32 @@ def create_app(config_class=Config) -> Flask:
     def admin_import_folders():
         category_id = request.form.get("category_id", type=int)
         subcategory_id = request.form.get("subcategory_id", type=int)
-        append_images = request.form.get("append") == "1"
+        model_id = request.form.get("model_id", type=int)
         category = db.session.get(Category, category_id) if category_id else None
         if category is None:
-            flash("Seleziona una categoria per importare le cartelle.", "error")
+            flash("Seleziona una macro-categoria per importare le immagini.", "error")
             return redirect(url_for("admin_upload", _anchor="importa-cartelle"))
 
         subcategory = _validate_subcategory(category, subcategory_id)
-        folders: dict[str, list] = {}
-        for file in _image_files(request.files.getlist("folders")):
-            folder_name = _folder_product_name(file.filename)
-            folders.setdefault(folder_name, []).append(file)
+        model = db.session.get(Product, model_id) if model_id else None
+        if model is None or model.category_id != category.id or model.subcategory_id != subcategory.id:
+            flash("Seleziona un modello della micro-categoria scelta.", "error")
+            return redirect(url_for("admin_upload", _anchor="importa-cartelle"))
 
-        if not folders:
+        files = _image_files(request.files.getlist("folders"))
+        if not files:
             flash("Seleziona almeno una cartella contenente immagini valide.", "error")
             return redirect(url_for("admin_upload", _anchor="importa-cartelle"))
 
-        imported = 0
-        for folder_name, files in folders.items():
-            _create_or_update_product(
-                app,
-                folder_name,
-                files,
-                category=category,
-                subcategory=subcategory,
-                replace_images=not append_images,
-            )
-            imported += 1
-
-        flash(f"Importati automaticamente {imported} prodotti da {len(folders)} cartelle.", "success")
+        _create_or_update_product(
+            app,
+            model.name,
+            files,
+            category=category,
+            subcategory=subcategory,
+            replace_images=False,
+        )
+        flash(f"Aggiunte {len(files)} immagini al modello '{model.name}'.", "success")
         return redirect(url_for("admin_upload"))
 
     @app.route("/admin/elimina/<int:product_id>", methods=["POST"])
@@ -506,20 +552,6 @@ def _image_files(files) -> list:
         for file in files
         if file and file.filename and Path(file.filename).suffix.lower() in ALLOWED_EXTENSIONS
     ]
-
-
-def _folder_product_name(filename: str) -> str:
-    normalized = filename.replace("\\", "/").strip("/")
-    parts = [part for part in normalized.split("/") if part and part.lower() != "fakepath"]
-
-    if not parts:
-        return "prodotto"
-
-    if len(parts) > 1 and re.fullmatch(r"[a-zA-Z]:", parts[0]):
-        parts = parts[1:]
-
-    folder_name = parts[-2] if len(parts) > 1 else Path(parts[0]).stem
-    return folder_name.replace("_", " ").strip() or "prodotto"
 
 
 if __name__ == "__main__":

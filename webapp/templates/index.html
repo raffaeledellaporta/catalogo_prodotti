@@ -2,37 +2,103 @@
 {% block content %}
 <section class="catalog-hero">
     <p class="eyebrow">Exclusive selection</p>
-    <h1>{{ selected_subcategory.name if selected_subcategory else (selected_category.name if selected_category else 'Catalogo prodotti') }}</h1>
-    <p>{% if selected_subcategory %}Esplora {{ selected_subcategory.name }} nella selezione {{ selected_category.name }}.{% elif selected_category %}Esplora la selezione {{ selected_category.name }}.{% else %}Una selezione curata di sneakers e apparel per uno stile autentico e distintivo.{% endif %}</p>
+    <h1>{{ selected_subcategory.name if selected_subcategory else (selected_category.name if selected_category else 'Scopri la collezione') }}</h1>
+    <p>{% if selected_subcategory %}Esplora {{ selected_subcategory.name }} nella selezione {{ selected_category.name }}.{% elif selected_category %}Esplora la selezione {{ selected_category.name }}.{% else %}Una selezione curata di sneakers e apparel per uno stile autentico e distintivo. Scegli una categoria per iniziare.{% endif %}</p>
 </section>
 
+{% if selected_category %}
+<nav class="breadcrumb" aria-label="Percorso">
+    <a href="{{ url_for('index') }}">Catalogo</a>
+    <span aria-hidden="true">/</span>
+    {% if selected_subcategory %}
+    <a href="{{ url_for('index', category_slug=selected_category.slug) }}">{{ selected_category.name }}</a>
+    <span aria-hidden="true">/</span>
+    <span aria-current="page">{{ selected_subcategory.name }}</span>
+    {% else %}
+    <span aria-current="page">{{ selected_category.name }}</span>
+    {% endif %}
+</nav>
+{% endif %}
+
 {% if site_categories %}
-<nav class="category-nav" aria-label="Categorie del catalogo">
-    <a class="{{ 'active' if not selected_category else '' }}" href="{{ url_for('index') }}">Tutte le categorie</a>
-    {% for category in site_categories %}
-    <a class="{{ 'active' if selected_category and selected_category.id == category.id else '' }}" href="{{ url_for('index', category_slug=category.slug) }}">{{ category.name }} <span>{{ category.products|length }}</span></a>
-    {% endfor %}
+<nav class="catalog-menu" aria-label="Categorie del catalogo">
+    <details class="catalog-menu-dropdown">
+        <summary>Tutte le categorie</summary>
+        <div class="catalog-menu-panel">
+            {% for category in site_categories %}
+            <details class="catalog-menu-category">
+                <summary>{{ category.name }} <span>{{ category.subcategories|length }}</span></summary>
+                <div class="catalog-menu-models">
+                    <a href="{{ url_for('index', category_slug=category.slug) }}">Tutti i modelli</a>
+                    {% for subcategory in category.subcategories %}
+                    <details class="catalog-menu-model">
+                        <summary>{{ subcategory.name }} <span>{{ subcategory.products|length }}</span></summary>
+                        <div class="catalog-menu-files">
+                            <a href="{{ url_for('index', category_slug=category.slug, subcategory_slug=subcategory.slug) }}">Tutti i modelli</a>
+                            {% for model in subcategory.products %}
+                            <a href="{{ url_for('product_detail', slug=model.slug) }}">{{ model.name }}</a>
+                            {% endfor %}
+                        </div>
+                    </details>
+                    {% endfor %}
+                </div>
+            </details>
+            {% endfor %}
+        </div>
+    </details>
 </nav>
 {% endif %}
 
-{% if selected_category and selected_category.subcategories %}
-<nav class="subcategory-nav" aria-label="Modelli {{ selected_category.name }}">
-    <a class="{{ 'active' if not selected_subcategory else '' }}" href="{{ url_for('index', category_slug=selected_category.slug) }}">Tutti i modelli</a>
-    {% for subcategory in selected_category.subcategories %}
-    <a class="{{ 'active' if selected_subcategory and selected_subcategory.id == subcategory.id else '' }}" href="{{ url_for('index', category_slug=selected_category.slug, subcategory_slug=subcategory.slug) }}">{{ subcategory.name }} <span>{{ subcategory.products|length }}</span></a>
-    {% endfor %}
-</nav>
-{% endif %}
+<form class="catalog-search" method="get" role="search">
+    <label for="catalog-search-input">Cerca prodotti</label>
+    <input id="catalog-search-input" type="search" name="q" value="{{ search_query }}" placeholder="Cerca un modello">
+    <button type="submit">Cerca</button>
+    {% if search_query %}
+    <a href="{{ request.path }}">Cancella</a>
+    {% endif %}
+</form>
 
-{% if not products %}
-    <p class="empty-state">{% if selected_category %}Non ci sono ancora prodotti in questa categoria. <a href="{{ url_for('index') }}">Vedi tutto il catalogo</a>.{% else %}Nessun prodotto pubblicato ancora. Vai nella sezione <a href="{{ url_for('admin_upload') }}">Admin</a> per aggiungerne uno.{% endif %}</p>
+{% if not selected_category and not search_query %}
+    {% if site_categories %}
+    <section class="category-showcase" aria-label="Categorie in evidenza">
+        <div class="section-title">
+            <div>
+                <p class="eyebrow">Catalogo</p>
+                <h2>Scegli una categoria</h2>
+            </div>
+        </div>
+        <div class="category-showcase-grid">
+            {% for category in site_categories %}
+            <a class="category-showcase-card" href="{{ url_for('index', category_slug=category.slug) }}">
+                {% set model = category.products|first %}
+                {% set cover = model.cover_image() if model else none %}
+                {% if cover %}
+                <img class="media-image" src="{{ url_for('static', filename='uploads/' ~ cover.filename) }}" alt="{{ category.name }}">
+                {% else %}
+                <div class="category-showcase-placeholder">EG</div>
+                {% endif %}
+                <div class="category-showcase-content">
+                    <h3>{{ category.name }}</h3>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+    {% else %}
+    <p class="empty-state">Le categorie saranno disponibili a breve.</p>
+    {% endif %}
+{% elif not products.items %}
+    <p class="empty-state">{% if search_query %}Nessun prodotto trovato per “{{ search_query }}”.{% elif selected_category %}Non ci sono ancora modelli in questa macro-categoria. <a href="{{ url_for('index') }}">Vedi tutto il catalogo</a>.{% else %}Nessun modello pubblicato ancora. Vai nella sezione <a href="{{ url_for('admin_upload') }}">Admin</a> per aggiungerne uno.{% endif %}</p>
 {% else %}
+{% if search_query %}
+<p class="catalog-search-results">Risultati per “{{ search_query }}” ({{ products.total }}).</p>
+{% endif %}
 <div class="product-grid">
-    {% for product in products %}
+    {% for product in products.items %}
     <a class="product-card" href="{{ url_for('product_detail', slug=product.slug) }}">
         {% set cover = product.cover_image() %}
         {% if cover %}
-            <img src="{{ url_for('static', filename='uploads/' ~ cover.filename) }}" alt="{{ product.name }}">
+            <img class="media-image" src="{{ url_for('static', filename='uploads/' ~ cover.filename) }}" alt="{{ product.name }}">
         {% else %}
             <div class="no-image">Nessuna immagine</div>
         {% endif %}
@@ -44,5 +110,26 @@
     </a>
     {% endfor %}
 </div>
+{% if products.pages > 1 %}
+<nav class="pagination" aria-label="Paginazione prodotti">
+    {% if products.has_prev %}
+    <a href="{{ url_for('index', category_slug=selected_category.slug if selected_category else none, subcategory_slug=selected_subcategory.slug if selected_subcategory else none, q=search_query or none, page=products.prev_num) }}">&larr; Precedente</a>
+    {% endif %}
+    {% for page_number in products.iter_pages() %}
+        {% if page_number %}
+            {% if page_number == products.page %}
+            <span aria-current="page">{{ page_number }}</span>
+            {% else %}
+            <a href="{{ url_for('index', category_slug=selected_category.slug if selected_category else none, subcategory_slug=selected_subcategory.slug if selected_subcategory else none, q=search_query or none, page=page_number) }}">{{ page_number }}</a>
+            {% endif %}
+        {% else %}
+        <span class="pagination-ellipsis" aria-hidden="true">&hellip;</span>
+        {% endif %}
+    {% endfor %}
+    {% if products.has_next %}
+    <a href="{{ url_for('index', category_slug=selected_category.slug if selected_category else none, subcategory_slug=selected_subcategory.slug if selected_subcategory else none, q=search_query or none, page=products.next_num) }}">Successiva &rarr;</a>
+    {% endif %}
+</nav>
+{% endif %}
 {% endif %}
 {% endblock %}

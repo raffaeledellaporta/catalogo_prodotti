@@ -1,7 +1,19 @@
 {% extends "base.html" %}
 {% block title %}{{ product.name }} - {{ site_name }}{% endblock %}
 {% block content %}
-<a class="back-link" href="{{ url_for('index') }}">&larr; Torna al catalogo</a>
+<nav class="breadcrumb" aria-label="Percorso">
+    <a href="{{ url_for('index') }}">Catalogo</a>
+    {% if product.category %}
+    <span aria-hidden="true">/</span>
+    <a href="{{ url_for('index', category_slug=product.category.slug) }}">{{ product.category.name }}</a>
+    {% endif %}
+    {% if product.subcategory %}
+    <span aria-hidden="true">/</span>
+    <a href="{{ url_for('index', category_slug=product.category.slug, subcategory_slug=product.subcategory.slug) }}">{{ product.subcategory.name }}</a>
+    {% endif %}
+    <span aria-hidden="true">/</span>
+    <span aria-current="page">{{ product.name }}</span>
+</nav>
 <header class="product-heading">
     <p class="eyebrow">{{ product.category.name if product.category else 'Exclusive gear' }}</p>
     <h1>{{ product.name }}</h1>
@@ -11,8 +23,14 @@
 <div class="product-gallery">
     {% for image in product.images %}
     <figure>
-        <img src="{{ url_for('static', filename='uploads/' ~ image.filename) }}" alt="{{ product.name }} - foto {{ loop.index }}" loading="lazy">
+        <button class="gallery-image-button" type="button" data-lightbox-image aria-label="Apri {{ product.name }} - foto {{ loop.index }} a schermo intero">
+            <img class="media-image" src="{{ url_for('static', filename='uploads/' ~ image.filename) }}" alt="{{ product.name }} - foto {{ loop.index }}" loading="lazy">
+        </button>
     </figure>
     {% endfor %}
 </div>
+<dialog class="image-lightbox" aria-label="Immagine prodotto a schermo intero">
+    <button class="lightbox-close" type="button" data-close-lightbox aria-label="Chiudi immagine">&times;</button>
+    <img src="" alt="">
+</dialog>
 {% endblock %}

@@ -41,6 +41,7 @@ class Config:
     # Keep individual requests small enough for reverse proxies. The browser
     # importer sends larger selections as multiple requests.
     MAX_CONTENT_LENGTH = int(os.environ.get("MAX_UPLOAD_MB", "25")) * 1024 * 1024
+    PRODUCTS_PER_PAGE = int(os.environ.get("PRODUCTS_PER_PAGE", "12"))
 
     # Password per accedere alla pagina di amministrazione (upload manuale).
     ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin123")
