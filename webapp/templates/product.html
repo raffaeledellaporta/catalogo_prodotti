@@ -17,20 +17,61 @@
 <header class="product-heading">
     <p class="eyebrow">{{ product.category.name if product.category else 'Exclusive gear' }}</p>
     <h1>{{ product.name }}</h1>
-    <p>{{ product.images|length }} immagini</p>
+    <p>{% if product.albums %}{{ product.albums|length }} cartelle · {% endif %}{{ product.images|length }} immagini</p>
 </header>
 
-<div class="product-gallery">
-    {% for image in product.images %}
-    <figure>
-        <button class="gallery-image-button" type="button" data-lightbox-image aria-label="Apri {{ product.name }} - foto {{ loop.index }} a schermo intero">
-            <img class="media-image" src="{{ url_for('static', filename='uploads/' ~ image.filename) }}" alt="{{ product.name }} - foto {{ loop.index }}" loading="lazy">
-        </button>
-    </figure>
+{% if product.albums %}
+<div class="album-grid">
+    {% for album in product.albums if album.images %}
+    <button class="album-card" type="button" data-gallery-images='{{ album.images|map(attribute="filename")|list|tojson }}' data-gallery-base="{{ url_for('static', filename='uploads/') }}" data-gallery-alt="{{ product.name }} - {{ album.name }}" aria-label="Apri la galleria {{ album.name }}">
+        {% set cover = album.cover_image() %}
+        <img class="media-image" src="{{ thumbnail_url(cover.filename) }}" alt="Copertina {{ album.name }}" loading="lazy">
+        <span class="album-card-content">
+            <strong>{{ album.name }}</strong>
+            <span>{{ album.images|length }} foto</span>
+        </span>
+    </button>
     {% endfor %}
 </div>
-<dialog class="image-lightbox" aria-label="Immagine prodotto a schermo intero">
+{% elif product.images %}
+{% set cover = product.cover_image() %}
+<section class="product-cover">
+    <button class="product-cover-card" type="button" data-gallery-image data-full-image="{{ url_for('static', filename='uploads/' ~ cover.filename) }}" data-gallery-index="0" aria-label="Apri la galleria di {{ product.name }}">
+        <img class="media-image" src="{{ thumbnail_url(cover.filename, 1280) }}" alt="Copertina di {{ product.name }}">
+        <span class="product-cover-content">
+            <span class="eyebrow">Modello</span>
+            <strong>{{ product.name }}</strong>
+            <span>Apri galleria · {{ product.images|length }} foto</span>
+        </span>
+    </button>
+</section>
+
+{% if product.images|length > 1 %}
+<section class="product-gallery-section" aria-labelledby="gallery-title">
+    <div class="section-title">
+        <div>
+            <p class="eyebrow">Galleria</p>
+            <h2 id="gallery-title">Altre foto di {{ product.name }}</h2>
+        </div>
+        <span>{{ product.images|length - 1 }} foto</span>
+    </div>
+    <div class="product-gallery">
+        {% for image in product.images[1:] %}
+        <figure>
+            <button class="gallery-image-button" type="button" data-gallery-image data-full-image="{{ url_for('static', filename='uploads/' ~ image.filename) }}" data-gallery-index="{{ loop.index }}" aria-label="Apri {{ product.name }} - foto {{ loop.index + 1 }} a schermo intero">
+                <img class="media-image" src="{{ thumbnail_url(image.filename) }}" alt="{{ product.name }} - foto {{ loop.index + 1 }}" loading="lazy">
+            </button>
+        </figure>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+{% endif %}
+<dialog class="image-lightbox" aria-label="Galleria immagini prodotto">
+    <button class="lightbox-previous" type="button" data-lightbox-previous aria-label="Foto precedente">&#8592;</button>
     <button class="lightbox-close" type="button" data-close-lightbox aria-label="Chiudi immagine">&times;</button>
     <img src="" alt="">
+    <button class="lightbox-next" type="button" data-lightbox-next aria-label="Foto successiva">&#8594;</button>
+    <p class="lightbox-counter" data-lightbox-counter aria-live="polite"></p>
 </dialog>
 {% endblock %}

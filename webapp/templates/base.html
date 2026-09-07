@@ -58,7 +58,7 @@
             updateScrollControls();
 
             document.querySelectorAll("img.media-image").forEach((image) => {
-                const container = image.closest(".product-card, .category-showcase-card, .product-gallery figure");
+                const container = image.closest(".product-card, .category-showcase-card, .product-cover-card, .album-card, .product-gallery figure");
                 if (!container) {
                     return;
                 }
@@ -78,20 +78,65 @@
                 return;
             }
 
+            const galleryButtons = Array.from(document.querySelectorAll("[data-gallery-image]"));
+            const albumButtons = Array.from(document.querySelectorAll("[data-gallery-images]"));
             const lightboxImage = lightbox.querySelector("img");
+            const previousButton = lightbox.querySelector("[data-lightbox-previous]");
+            const nextButton = lightbox.querySelector("[data-lightbox-next]");
+            const counter = lightbox.querySelector("[data-lightbox-counter]");
+            let activeImageIndex = 0;
+
+            let activeImages = [];
+            const showImage = (index) => {
+                activeImageIndex = (index + activeImages.length) % activeImages.length;
+                const image = activeImages[activeImageIndex];
+                lightboxImage.src = image.src;
+                lightboxImage.alt = image.alt;
+                counter.textContent = `Foto ${activeImageIndex + 1} di ${activeImages.length}`;
+                const hasMultipleImages = activeImages.length > 1;
+                previousButton.hidden = !hasMultipleImages;
+                nextButton.hidden = !hasMultipleImages;
+            };
             const closeLightbox = () => lightbox.close();
-            document.querySelectorAll("[data-lightbox-image]").forEach((button) => {
+            galleryButtons.forEach((button, index) => {
                 button.addEventListener("click", () => {
-                    const image = button.querySelector("img");
-                    lightboxImage.src = image.currentSrc || image.src;
-                    lightboxImage.alt = image.alt;
+                    activeImages = galleryButtons.map((galleryButton) => {
+                        const image = galleryButton.querySelector("img");
+                        return {
+                            src: galleryButton.dataset.fullImage || image.currentSrc || image.src,
+                            alt: image.alt,
+                        };
+                    });
+                    showImage(index);
                     lightbox.showModal();
                 });
             });
+            albumButtons.forEach((button) => {
+                button.addEventListener("click", () => {
+                    activeImages = JSON.parse(button.dataset.galleryImages).map((filename) => ({
+                        src: `${button.dataset.galleryBase}${filename}`,
+                        alt: button.dataset.galleryAlt,
+                    }));
+                    showImage(0);
+                    lightbox.showModal();
+                });
+            });
+            previousButton.addEventListener("click", () => showImage(activeImageIndex - 1));
+            nextButton.addEventListener("click", () => showImage(activeImageIndex + 1));
             lightbox.querySelector("[data-close-lightbox]").addEventListener("click", closeLightbox);
             lightbox.addEventListener("click", (event) => {
                 if (event.target === lightbox) {
                     closeLightbox();
+                }
+            });
+            document.addEventListener("keydown", (event) => {
+                if (!lightbox.open || activeImages.length < 2) {
+                    return;
+                }
+                if (event.key === "ArrowLeft") {
+                    showImage(activeImageIndex - 1);
+                } else if (event.key === "ArrowRight") {
+                    showImage(activeImageIndex + 1);
                 }
             });
         })();

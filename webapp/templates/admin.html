@@ -105,7 +105,7 @@
 <section class="admin-folder-import" id="importa-cartelle">
     <p class="eyebrow">Caricamento immagini</p>
     <h2>Importa immagini da cartelle</h2>
-    <p>Seleziona macro-categoria, micro-categoria e modello. Tutte le immagini delle cartelle selezionate saranno aggiunte al modello scelto, senza modificarne il nome.</p>
+    <p>Seleziona macro, micro-categoria e modello, poi scegli una cartella padre. Ogni sua sottocartella resta nel modello scelto: la prima foto è la copertina, le altre restano nella sua galleria e il nome è quello della cartella. Le sottocartelle con lo stesso nome, anche se provengono da cartelle padre diverse, vengono unite nello stesso album.</p>
     <form method="post" action="{{ url_for('admin_import_folders') }}" enctype="multipart/form-data" class="upload-form" id="folder-import-form">
         <label>Macro-categoria
             <select name="category_id" id="folder-category" required {% if not categories %}disabled{% endif %}>
@@ -137,14 +137,14 @@
         </label>
         <div id="folder-pickers" class="folder-pickers">
             <div class="folder-picker">
-                <label>Cartella immagini 1
+                <label>Cartella padre 1
                     <input type="file" name="folders" accept="image/*" webkitdirectory directory multiple required>
                 </label>
                 <span class="folder-picker-summary" aria-live="polite">Nessuna cartella selezionata</span>
             </div>
         </div>
         <button type="button" id="add-folder-picker" class="btn-secondary">+ Aggiungi un'altra cartella</button>
-        <button type="submit">Importa immagini</button>
+        <button type="submit">Importa cartelle nel modello</button>
         <p id="folder-import-progress" class="folder-import-progress" aria-live="polite"></p>
     </form>
 </section>
@@ -324,7 +324,7 @@
 
         function updatePickerNumbers() {
             pickers.querySelectorAll(".folder-picker").forEach((picker, index) => {
-                picker.querySelector("label").firstChild.textContent = `Cartella immagini ${index + 1} `;
+                picker.querySelector("label").firstChild.textContent = `Cartella padre ${index + 1} `;
             });
         }
 
@@ -336,8 +336,13 @@
             }
 
             const relativePath = input.files[0].webkitRelativePath || input.files[0].name;
-            const folderName = relativePath.split("/")[0];
-            summary.textContent = `${folderName}: ${input.files.length} immagini selezionate`;
+            const parentFolder = relativePath.split("/")[0];
+            const productFolders = new Set(
+                Array.from(input.files)
+                    .map((file) => (file.webkitRelativePath || file.name).split("/").slice(-2, -1)[0])
+                    .filter(Boolean)
+            );
+            summary.textContent = `${parentFolder}: ${productFolders.size} prodotti e ${input.files.length} immagini selezionate`;
         }
 
         function bindPicker(picker) {
@@ -359,7 +364,7 @@
             const picker = document.createElement("div");
             picker.className = "folder-picker";
             picker.innerHTML = `
-                <label>Cartella immagini
+                <label>Cartella padre
                     <input type="file" name="folders" accept="image/*" webkitdirectory directory multiple>
                 </label>
                 <span class="folder-picker-summary" aria-live="polite">Nessuna cartella selezionata</span>

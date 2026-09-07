@@ -59,6 +59,36 @@ class Product(db.Model):
         cascade="all, delete-orphan",
         order_by="ProductImage.position",
     )
+    albums = db.relationship(
+        "ProductAlbum",
+        back_populates="product",
+        cascade="all, delete-orphan",
+        order_by="ProductAlbum.created_at",
+    )
+
+    def cover_image(self):
+        if self.albums:
+            return self.albums[0].cover_image()
+        return self.images[0] if self.images else None
+
+
+class ProductAlbum(db.Model):
+    __tablename__ = "product_albums"
+    __table_args__ = (db.UniqueConstraint("product_id", "slug", name="uq_product_album_slug"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    product_id = db.Column(db.Integer, db.ForeignKey("products.id"), nullable=False, index=True)
+    name = db.Column(db.String(255), nullable=False)
+    slug = db.Column(db.String(255), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    product = db.relationship("Product", back_populates="albums")
+    images = db.relationship(
+        "ProductImage",
+        back_populates="album",
+        cascade="all, delete-orphan",
+        order_by="ProductImage.position",
+    )
 
     def cover_image(self):
         return self.images[0] if self.images else None
@@ -69,5 +99,8 @@ class ProductImage(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     product_id = db.Column(db.Integer, db.ForeignKey("products.id"), nullable=False)
+    album_id = db.Column(db.Integer, db.ForeignKey("product_albums.id"), nullable=True, index=True)
     filename = db.Column(db.String(500), nullable=False)  # percorso relativo in static/uploads
     position = db.Column(db.Integer, default=0)
+
+    album = db.relationship("ProductAlbum", back_populates="images")

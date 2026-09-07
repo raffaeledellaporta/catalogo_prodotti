@@ -8,7 +8,7 @@ che incolli:
   1. Scarica sempre tutte le foto di ogni prodotto (album), alla risoluzione
      più alta, anche se esistono file con lo stesso nome (yupoo_scraper.py)
   2. Rimuove le scritte cinesi da ogni foto con OCR + inpainting
-     (image_cleaner.py)
+     direttamente nella cartella download (image_cleaner.py)
   3. Pubblica automaticamente il prodotto sul sito vetrina, chiamando la
      API POST /api/prodotti. Una categoria scelta una sola volta viene
      applicata a tutti i prodotti del link.
@@ -42,33 +42,30 @@ SITE_API_URL = os.environ.get("SITE_API_URL", "http://127.0.0.1:5000")
 API_KEY = os.environ.get("API_KEY", "cambia-questa-api-key")
 
 RAW_DIR = "download"
-CLEAN_DIR = "pulito"
 
 
-def publish_product(
-    product: ys.Product, raw_dir: Path, clean_dir: Path, category_name: str | None = None
-) -> bool:
+def publish_product(product: ys.Product, image_dir: Path, category_name: str | None = None) -> bool:
     """Pulisce le foto di un prodotto e le pubblica sul sito. Ritorna True
     se la pubblicazione è andata a buon fine."""
     print(f"\n[PULIZIA] '{product.name}' ({len(product.saved_files)} foto)...")
-    summary = ic.clean_folder(raw_dir, clean_dir)
+    summary = ic.clean_folder(image_dir, image_dir)
     print(
         f"[PULIZIA] Completata: {summary['con_testo_rimosso']} foto pulite, "
         f"{summary['senza_testo']} già senza testo."
     )
 
-    clean_files = sorted(
-        f for f in clean_dir.iterdir() if f.is_file() and f.suffix.lower() in ic.IMAGE_EXTENSIONS
+    image_files = sorted(
+        f for f in image_dir.iterdir() if f.is_file() and f.suffix.lower() in ic.IMAGE_EXTENSIONS
     )
-    if not clean_files:
+    if not image_files:
         print(f"[WARN] Nessuna immagine pulita da pubblicare per '{product.name}'.")
         return False
 
-    print(f"[UPLOAD] Pubblico '{product.name}' su {SITE_API_URL} ({len(clean_files)} foto)...")
+    print(f"[UPLOAD] Pubblico '{product.name}' su {SITE_API_URL} ({len(image_files)} foto)...")
     files_payload = []
     open_handles = []
     try:
-        for f in clean_files:
+        for f in image_files:
             handle = open(f, "rb")
             open_handles.append(handle)
             files_payload.append(("images", (f.name, handle, "image/jpeg")))
@@ -112,15 +109,13 @@ def process_link(yupoo_url: str, category_name: str | None = None) -> None:
 
     published = 0
     for product in products:
-        # Ricostruiamo la cartella in cui yupoo_scraper ha salvato le foto
-        # grezze di questo prodotto, per passarla alla pulizia.
+        # Le foto vengono pulite direttamente nella cartella in cui sono state
+        # scaricate, quindi upload e download usano gli stessi file.
         if not product.saved_files:
             continue
-        raw_dir = product.saved_files[0].parent
-        rel = raw_dir.relative_to(RAW_DIR)
-        clean_dir = Path(CLEAN_DIR) / rel
+        image_dir = product.saved_files[0].parent
 
-        if publish_product(product, raw_dir, clean_dir, category_name):
+        if publish_product(product, image_dir, category_name):
             published += 1
 
     print(f"\n[RIEPILOGO] {published}/{len(products)} prodotto/i pubblicato/i sul sito.")

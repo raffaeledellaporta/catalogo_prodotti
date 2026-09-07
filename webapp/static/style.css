@@ -575,7 +575,7 @@ h2 { font-size: clamp(1.6rem, 3vw, 2.25rem); }
 
 .product-card-content { padding: 18px; border-top: 1px solid rgba(216, 173, 99, 0.1); }
 .product-card-category { margin-bottom: 8px; color: var(--gold); font-size: 0.66rem; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; }
-.product-card-name { min-height: 46px; font-family: Georgia, "Times New Roman", serif; font-size: 1.05rem; letter-spacing: 0.015em; }
+.product-card-name { min-height: 46px; overflow-wrap: anywhere; font-family: Georgia, "Times New Roman", serif; font-size: 1.05rem; letter-spacing: 0.015em; }
 
 .product-card-count {
     display: flex;
@@ -596,6 +596,83 @@ h2 { font-size: clamp(1.6rem, 3vw, 2.25rem); }
 }
 
 .product-heading h1 { margin-bottom: 8px; font-size: clamp(2rem, 5vw, 3.8rem); }
+
+.album-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 26px;
+}
+
+.album-card {
+    display: block;
+    overflow: hidden;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: linear-gradient(145deg, #161410, var(--black-soft) 58%);
+    box-shadow: var(--shadow-deep);
+    color: var(--ivory);
+    cursor: zoom-in;
+    text-align: left;
+    transition: border-color 0.25s ease, transform 0.25s ease;
+}
+
+.album-card:hover { border-color: rgba(216, 173, 99, 0.7); transform: translateY(-6px); }
+.album-card img { display: block; width: 100%; height: 260px; object-fit: cover; transition: opacity 0.35s ease, transform 0.45s ease; }
+.album-card:hover img { transform: scale(1.035); }
+.album-card.is-loading { background: linear-gradient(105deg, #171513 30%, #29251f 45%, #171513 60%); background-size: 220% 100%; animation: skeleton-shimmer 1.4s ease-in-out infinite; }
+.album-card.is-loading .media-image { opacity: 0; }
+.album-card-content { display: grid; gap: 8px; padding: 18px; border-top: 1px solid rgba(216, 173, 99, 0.1); }
+.album-card-content strong { min-height: 46px; overflow-wrap: anywhere; font-family: Georgia, "Times New Roman", serif; font-size: 1.05rem; font-weight: 400; }
+.album-card-content span { color: var(--muted); font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; }
+
+.product-cover { margin-bottom: 42px; }
+
+.product-cover-card {
+    position: relative;
+    display: block;
+    width: 100%;
+    overflow: hidden;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--black-soft);
+    box-shadow: var(--shadow-deep);
+    cursor: zoom-in;
+    text-align: left;
+}
+
+.product-cover-card img {
+    display: block;
+    width: 100%;
+    max-height: min(70vh, 720px);
+    object-fit: cover;
+    transition: opacity 0.35s ease, transform 0.5s ease;
+}
+
+.product-cover-card:hover { border-color: rgba(216, 173, 99, 0.7); }
+.product-cover-card:hover img { transform: scale(1.025); }
+.product-cover-card.is-loading { min-height: 420px; }
+.product-cover-card.is-loading .media-image { opacity: 0; }
+
+.product-cover-content {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: grid;
+    gap: 5px;
+    padding: 56px 28px 24px;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.9));
+    color: var(--ivory);
+}
+
+.product-cover-content .eyebrow { margin: 0; }
+.product-cover-content strong { overflow-wrap: anywhere; font-family: Georgia, "Times New Roman", serif; font-size: clamp(1.5rem, 3vw, 2.4rem); }
+.product-cover-content > span:last-child { color: var(--gold-light); font-size: 0.8rem; letter-spacing: 0.1em; text-transform: uppercase; }
+
+.product-gallery-section { margin-top: 10px; }
+.product-gallery-section .section-title { margin-bottom: 20px; }
 
 .product-gallery {
     display: grid;
@@ -649,6 +726,11 @@ h2 { font-size: clamp(1.6rem, 3vw, 2.25rem); }
 .image-lightbox img { display: block; max-width: 100%; max-height: calc(100vh - 32px); margin: auto; object-fit: contain; }
 .lightbox-close { position: fixed; top: 22px; right: 28px; width: 42px; min-height: 42px; padding: 0; border-radius: 50%; background: rgba(8, 8, 8, 0.8); color: var(--ivory); font-size: 1.8rem; line-height: 1; }
 .lightbox-close:hover { background: var(--gold); color: var(--black); }
+.lightbox-previous, .lightbox-next { position: fixed; top: 50%; width: 48px; min-height: 48px; padding: 0; border-radius: 50%; background: rgba(8, 8, 8, 0.8); color: var(--ivory); font-size: 1.5rem; line-height: 1; transform: translateY(-50%); }
+.lightbox-previous { left: 20px; }
+.lightbox-next { right: 20px; }
+.lightbox-previous:hover, .lightbox-next:hover { background: var(--gold); color: var(--black); }
+.lightbox-counter { position: fixed; bottom: 18px; left: 50%; margin: 0; color: var(--ivory); font-size: 0.78rem; letter-spacing: 0.1em; text-transform: uppercase; transform: translateX(-50%); }
 
 @keyframes fade-up {
     from { opacity: 0; transform: translateY(10px); }
@@ -1050,10 +1132,10 @@ button:hover { background: var(--gold-light); }
     .category-showcase-card, .category-showcase-card img, .category-showcase-placeholder { min-height: 210px; height: 210px; }
     .category-showcase-content { padding: 24px 13px 12px; }
     .category-showcase-content h3 { font-size: 1rem; }
-    .product-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-    .product-card img, .product-card .no-image { height: 190px; }
+    .product-grid, .album-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .product-card img, .product-card .no-image, .album-card img { height: 190px; }
     .product-card-content { padding: 12px; }
-    .product-card-name { min-height: 58px; font-size: 0.93rem; }
+    .product-card-name, .album-card-content strong { min-height: 58px; font-size: 0.93rem; }
     .product-gallery { grid-template-columns: 1fr; }
     .admin-heading, .admin-product-header { flex-direction: column; }
     .category-form { flex-direction: column; }
@@ -1070,7 +1152,7 @@ button:hover { background: var(--gold-light); }
 
 @media (max-width: 390px) {
     .site-title { max-width: 120px; font-size: 0.9rem; }
-    .category-showcase-grid, .product-grid, .admin-image-grid { grid-template-columns: 1fr; }
+    .category-showcase-grid, .product-grid, .album-grid, .admin-image-grid { grid-template-columns: 1fr; }
     .category-showcase-card, .category-showcase-card img, .category-showcase-placeholder { min-height: 260px; height: 260px; }
-    .product-card img, .product-card .no-image, .admin-image img { height: 260px; }
+    .product-card img, .product-card .no-image, .album-card img, .admin-image img { height: 260px; }
 }

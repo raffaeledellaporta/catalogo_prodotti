@@ -73,7 +73,7 @@
                 {% set model = category.products|first %}
                 {% set cover = model.cover_image() if model else none %}
                 {% if cover %}
-                <img class="media-image" src="{{ url_for('static', filename='uploads/' ~ cover.filename) }}" alt="{{ category.name }}">
+                <img class="media-image" src="{{ thumbnail_url(cover.filename) }}" alt="{{ category.name }}">
                 {% else %}
                 <div class="category-showcase-placeholder">EG</div>
                 {% endif %}
@@ -98,7 +98,7 @@
     <a class="product-card" href="{{ url_for('product_detail', slug=product.slug) }}">
         {% set cover = product.cover_image() %}
         {% if cover %}
-            <img class="media-image" src="{{ url_for('static', filename='uploads/' ~ cover.filename) }}" alt="{{ product.name }}">
+            <img class="media-image" src="{{ thumbnail_url(cover.filename) }}" alt="{{ product.name }}">
         {% else %}
             <div class="no-image">Nessuna immagine</div>
         {% endif %}
