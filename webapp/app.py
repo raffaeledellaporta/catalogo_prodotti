@@ -30,6 +30,7 @@ ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 THUMBNAIL_SIZES = {640, 1280}
 WEBP_MAX_DIMENSION = 1_600
 WEBP_QUALITY = 82
+MAX_IMAGE_PIXELS = 40_000_000
 TITLE_CODE_SUFFIX = re.compile(
     r"\s*(?:style\s*)?code(?:\s*[:#-]?\s*[A-Za-z0-9]+(?:-[A-Za-z0-9]*)*)?\s*$",
     re.IGNORECASE,
@@ -555,13 +556,18 @@ def create_app(config_class=Config) -> Flask:
             flash(str(error), "error")
             return redirect(url_for("admin_upload", _anchor="importa-cartelle"))
 
-        for folder_name, folder_files in files_by_folder.items():
-            _create_or_update_album(
-                app,
-                model,
-                folder_name,
-                folder_files,
-            )
+        try:
+            for folder_name, folder_files in files_by_folder.items():
+                _create_or_update_album(
+                    app,
+                    model,
+                    folder_name,
+                    folder_files,
+                )
+        except ValueError as error:
+            db.session.rollback()
+            flash(str(error), "error")
+            return redirect(url_for("admin_upload", _anchor="importa-cartelle"))
         flash(
             f"Importate {len(files_by_folder)} cartelle e {len(files)} immagini in '{model.name}'. "
             "Le cartelle con lo stesso nome sono state unite nello stesso album.",
@@ -1010,7 +1016,7 @@ def _save_uploaded_image_as_webp(file, destination_path: Path) -> None:
     try:
         file.stream.seek(0)
         _save_image_as_webp(file.stream, destination_path)
-    except (Image.UnidentifiedImageError, OSError) as error:
+    except (Image.UnidentifiedImageError, Image.DecompressionBombError, OSError, ValueError) as error:
         raise ValueError(
             f"Il file '{secure_filename(file.filename)}' non è un'immagine valida."
         ) from error
@@ -1026,6 +1032,10 @@ def _save_image_as_webp(source, destination_path: Path) -> None:
     )
     try:
         with Image.open(source) as image:
+            if image.width * image.height > MAX_IMAGE_PIXELS:
+                raise ValueError(
+                    f"L'immagine supera il limite di {MAX_IMAGE_PIXELS:,} pixel."
+                )
             image = ImageOps.exif_transpose(image)
             image.thumbnail(
                 (WEBP_MAX_DIMENSION, WEBP_MAX_DIMENSION),
