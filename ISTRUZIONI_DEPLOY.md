@@ -68,3 +68,25 @@ Poi lancia normalmente:
 
 Lo script scaricherà da Yupoo, pulirà le immagini e le pubblicherà
 automaticamente sul sito online.
+
+## 7. Pre-commit hook: blocca i commit che romperebbero il deploy
+Nel repo c'è un hook Git versionato in `hooks/pre-commit` che, prima di ogni
+commit, controlla automaticamente:
+- sintassi dei file `.py` modificati;
+- che tutti i template usati in `webapp/app.py` esistano davvero in
+  `webapp/templates/`;
+- che ogni libreria importata in `webapp/*.py` sia elencata in
+  `webapp/requirements.txt`;
+- che l'app si avvii correttamente usando SOLO le dipendenze di
+  `webapp/requirements.txt` (simula esattamente il boot su Render).
+
+Se qualcosa manca (com'era successo con Pillow), il commit viene bloccato con
+un messaggio chiaro, invece di scoprirlo dopo dal deploy fallito su Render.
+
+**Da eseguire una sola volta per ogni checkout/clone del repository:**
+
+    git config core.hooksPath hooks
+
+Da quel momento l'hook parte automaticamente ad ogni `git commit`. Se un
+controllo fallisce e vuoi comunque forzare il commit, puoi sempre usare
+`git commit --no-verify` (sconsigliato).

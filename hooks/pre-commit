@@ -1,0 +1,32 @@
+#!/bin/sh
+# hooks/pre-commit
+# =================
+# Hook Git versionato: eseguito automaticamente da Git prima di ogni commit.
+# Blocca il commit se scripts/check_before_commit.py trova problemi
+# (sintassi errata, template mancanti, dipendenze mancanti da
+# webapp/requirements.txt, oppure l'app non si avvia con le sole dipendenze
+# dichiarate, come sarebbe successo su Render).
+#
+# Per attivarlo in questo repository (una sola volta, per ogni checkout):
+#   git config core.hooksPath hooks
+
+REPO_ROOT=$(git rev-parse --show-toplevel) || exit 1
+
+# Su Windows "python"/"python3" possono risolvere solo lo stub del Microsoft
+# Store (se non attivo nessun venv nella shell che ha lanciato git), quindi
+# preferiamo il launcher "py" quando disponibile.
+if command -v py >/dev/null 2>&1; then
+  py -3 "$REPO_ROOT/scripts/check_before_commit.py"
+  exit $?
+elif command -v python3 >/dev/null 2>&1; then
+  python3 "$REPO_ROOT/scripts/check_before_commit.py"
+  exit $?
+elif command -v python >/dev/null 2>&1; then
+  python "$REPO_ROOT/scripts/check_before_commit.py"
+  exit $?
+else
+  echo "[PRE-COMMIT] ERRORE: nessun interprete Python trovato (py/python3/python)." >&2
+  exit 1
+fi
+
+

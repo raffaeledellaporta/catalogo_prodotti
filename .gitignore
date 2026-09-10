@@ -1,4 +1,5 @@
 venv/
+.precommit-venv/
 __pycache__/
 *.pyc
 .env
