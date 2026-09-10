@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}{{ product.name }} - Admin - {{ site_name }}{% endblock %}
+{% block content %}
+<header class="admin-heading">
+    <div>
+        <p class="eyebrow">Foto senza modello</p>
+        <h1>{{ product.subcategory.name if product.subcategory else product.name }}</h1>
+        <p>{{ product.category.name if product.category else 'Senza macro-categoria' }} &middot; {{ images.total }} foto</p>
+    </div>
+    <a class="btn-secondary" href="{{ url_for('admin_upload', _anchor='foto-senza-modello') }}">&larr; Torna all'admin</a>
+</header>
+
+<section class="admin-list">
+    <h2>Foto ({{ images.total }})</h2>
+    {% if not images.items %}
+        <p>Nessuna foto in questa micro-categoria.</p>
+    {% else %}
+    <form method="post" action="{{ url_for('admin_delete_selected_images', product_id=product.id) }}" class="bulk-image-delete-form" id="bulk-image-delete-{{ product.id }}" data-bulk-delete-form>
+        <input type="hidden" name="page" value="{{ images.page }}">
+        <span data-selection-summary>Seleziona le foto da eliminare</span>
+        <button type="submit" class="btn-image-delete" disabled>Elimina selezionate</button>
+    </form>
+    <div class="admin-image-grid">
+        {% for image in images.items %}
+        <div class="admin-image">
+            <img src="{{ url_for('static', filename='uploads/' ~ image.filename) }}" alt="{{ product.name }} - foto {{ loop.index }}" loading="lazy">
+            <div class="admin-image-actions">
+                <span>Foto {{ image.position }}{% if image.album %} &middot; {{ image.album.name }}{% endif %}</span>
+                <label class="admin-image-select">
+                    <input type="checkbox" name="image_ids" value="{{ image.id }}" form="bulk-image-delete-{{ product.id }}" data-image-selection>
+                    Seleziona
+                </label>
+                <form method="post" action="{{ url_for('admin_delete_image', image_id=image.id) }}" onsubmit="return confirm('Eliminare solo questa foto?');">
+                    <input type="hidden" name="page" value="{{ images.page }}">
+                    <button type="submit" class="btn-image-delete" {% if images.total == 1 %}disabled title="Non puoi eliminare l'ultima foto"{% endif %}>Elimina foto</button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% if images.pages > 1 %}
+    <nav class="pagination" aria-label="Paginazione foto">
+        {% if images.has_prev %}
+        <a href="{{ url_for('admin_manage_unmodeled_photos', product_id=product.id, page=images.prev_num) }}">&larr; Precedente</a>
+        {% endif %}
+        <span>Pagina {{ images.page }} di {{ images.pages }}</span>
+        {% if images.has_next %}
+        <a href="{{ url_for('admin_manage_unmodeled_photos', product_id=product.id, page=images.next_num) }}">Successiva &rarr;</a>
+        {% endif %}
+    </nav>
+    {% endif %}
+    {% endif %}
+</section>
+
+<script>
+    (() => {
+        document.querySelectorAll("[data-bulk-delete-form]").forEach((form) => {
+            const selections = document.querySelectorAll(
+                `[data-image-selection][form="${form.id}"]`
+            );
+            const submitButton = form.querySelector('button[type="submit"]');
+            const summary = form.querySelector("[data-selection-summary]");
+
+            function updateSelection() {
+                const selected = Array.from(selections).filter((input) => input.checked).length;
+                submitButton.disabled = selected === 0;
+                summary.textContent = selected
+                    ? `${selected} foto selezionate`
+                    : "Seleziona le foto da eliminare";
+            }
+
+            selections.forEach((input) => input.addEventListener("change", updateSelection));
+            form.addEventListener("submit", (event) => {
+                const selected = Array.from(selections).filter((input) => input.checked).length;
+                if (!selected || !window.confirm(`Eliminare ${selected} foto selezionate?`)) {
+                    event.preventDefault();
+                }
+            });
+        });
+    })();
+</script>
+{% endblock %}
+
