@@ -21,13 +21,25 @@
     <p>Crea le categorie principali del catalogo, ad esempio “Scarpe Nike”, “Scarpe Adidas” o “New Balance”.</p>
     <form method="post" action="{{ url_for('admin_create_category') }}" class="category-form">
         <input type="text" name="name" maxlength="100" required placeholder="Nome nuova macro-categoria">
+        <label class="category-behavior-toggle">
+            <input type="checkbox" name="direct_subcategory_access" value="1">
+            Apri direttamente le micro-categorie
+        </label>
         <button type="submit">Crea macro-categoria</button>
     </form>
     {% if categories %}
     <div class="admin-category-list">
         {% for category in categories %}
         <div class="admin-category-chip">
-            <a href="{{ url_for('index', category_slug=category.slug) }}" target="_blank">{{ category.name }} <span>{{ category.products|length }} modelli</span></a>
+            <a href="{{ url_for('index', category_slug=category.slug) }}" target="_blank">{{ category.name }} <span>{{ category.products|selectattr('is_model')|list|length }} modelli</span></a>
+            <form method="post" action="{{ url_for('admin_rename_category', category_id=category.id) }}" class="rename-form">
+                <input type="text" name="name" value="{{ category.name }}" maxlength="100" required aria-label="Nome macro-categoria {{ category.name }}">
+                <label class="category-behavior-toggle">
+                    <input type="checkbox" name="direct_subcategory_access" value="1" {% if category.direct_subcategory_access %}checked{% endif %}>
+                    Apertura diretta
+                </label>
+                <button type="submit">Rinomina</button>
+            </form>
             <form method="post" action="{{ url_for('admin_delete_category', category_id=category.id) }}" onsubmit="return confirm('Eliminare questa macro-categoria? I modelli non verranno eliminati.');">
                 <button type="submit" class="btn-category-delete" aria-label="Elimina categoria {{ category.name }}">&times;</button>
             </form>
@@ -62,7 +74,11 @@
         <div class="admin-category-list">
             {% for subcategory in category.subcategories %}
             <div class="admin-category-chip">
-                <a href="{{ url_for('index', category_slug=category.slug, subcategory_slug=subcategory.slug) }}" target="_blank">{{ subcategory.name }} <span>{{ subcategory.products|length }} modelli</span></a>
+                <a href="{{ url_for('index', category_slug=category.slug, subcategory_slug=subcategory.slug) }}" target="_blank">{{ subcategory.name }} <span>{{ subcategory.products|selectattr('is_model')|list|length }} modelli</span></a>
+                <form method="post" action="{{ url_for('admin_rename_subcategory', subcategory_id=subcategory.id) }}" class="rename-form">
+                    <input type="text" name="name" value="{{ subcategory.name }}" maxlength="100" required aria-label="Nome micro-categoria {{ subcategory.name }}">
+                    <button type="submit">Rinomina</button>
+                </form>
                 <form method="post" action="{{ url_for('admin_delete_subcategory', subcategory_id=subcategory.id) }}" onsubmit="return confirm('Eliminare questa micro-categoria? I modelli resteranno nella macro-categoria.');">
                     <button type="submit" class="btn-category-delete" aria-label="Elimina micro-categoria {{ subcategory.name }}">&times;</button>
                 </form>
@@ -105,7 +121,7 @@
 <section class="admin-folder-import" id="importa-cartelle">
     <p class="eyebrow">Caricamento immagini</p>
     <h2>Importa immagini da cartelle</h2>
-    <p>Seleziona macro, micro-categoria e modello, poi scegli una cartella padre. Ogni sua sottocartella resta nel modello scelto: la prima foto è la copertina, le altre restano nella sua galleria e il nome è quello della cartella. Le sottocartelle con lo stesso nome, anche se provengono da cartelle padre diverse, vengono unite nello stesso album.</p>
+    <p>Seleziona macro e micro-categoria, poi scegli facoltativamente un modello. Se non scegli un modello, le immagini saranno pubblicate direttamente nella micro-categoria. Ogni sottocartella diventa una galleria e quelle con lo stesso nome vengono unite.</p>
     <form method="post" action="{{ url_for('admin_import_folders') }}" enctype="multipart/form-data" class="upload-form" id="folder-import-form">
         <label>Macro-categoria
             <select name="category_id" id="folder-category" required {% if not categories %}disabled{% endif %}>
@@ -125,12 +141,14 @@
                 {% endfor %}
             </select>
         </label>
-        <label>Modello
-            <select name="model_id" id="folder-model" required disabled>
+        <label>Modello (facoltativo)
+            <select name="model_id" id="folder-model" disabled>
                 <option value="">Prima seleziona una micro-categoria</option>
                 {% for category in categories %}
-                    {% for model in category.products %}
+                    {% for subcategory in category.subcategories %}
+                    {% for model in category.products if model.is_model and model.subcategory_id == subcategory.id %}
                     <option value="{{ model.id }}" data-category-id="{{ category.id }}" data-subcategory-id="{{ model.subcategory_id or '' }}">{{ model.name }}</option>
+                    {% endfor %}
                     {% endfor %}
                 {% endfor %}
             </select>
@@ -144,7 +162,7 @@
             </div>
         </div>
         <button type="button" id="add-folder-picker" class="btn-secondary">+ Aggiungi un'altra cartella</button>
-        <button type="submit">Importa cartelle nel modello</button>
+        <button type="submit">Importa immagini</button>
         <p id="folder-import-progress" class="folder-import-progress" aria-live="polite"></p>
     </form>
 </section>
@@ -154,6 +172,22 @@
     {% if not products %}
         <p>Nessun modello ancora.</p>
     {% else %}
+    <form method="post" action="{{ url_for('admin_delete_selected_products') }}" class="bulk-model-delete-form" id="bulk-model-delete" data-bulk-model-delete-form>
+        <span data-model-selection-summary>Seleziona i modelli da eliminare</span>
+        <button type="submit" class="btn-danger" disabled>Elimina selezionati</button>
+    </form>
+    <form method="post" action="{{ url_for('admin_merge_products') }}" class="bulk-model-merge-form" id="bulk-model-merge" data-bulk-model-merge-form>
+        <label>Unisci nel modello
+            <select name="destination_id" required>
+                <option value="">Scegli il modello di destinazione</option>
+                {% for product in products %}
+                <option value="{{ product.id }}">{{ product.name }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <span data-model-merge-summary>Seleziona i modelli da unire</span>
+        <button type="submit" disabled>Unisci selezionati</button>
+    </form>
     <div class="admin-products">
     {% for product in products %}
         <article class="admin-product" id="product-{{ product.id }}">
@@ -162,10 +196,27 @@
                     <h3><a href="{{ url_for('product_detail', slug=product.slug) }}" target="_blank">{{ product.name }}</a></h3>
                     <p>{{ product.images|length }} foto &middot; Pubblicato il {{ product.created_at.strftime('%d/%m/%Y alle %H:%M') }}</p>
                 </div>
-                <form method="post" action="{{ url_for('admin_delete', product_id=product.id) }}" onsubmit="return confirm('Eliminare il modello e tutte le sue immagini?');">
-                    <button type="submit" class="btn-danger">Elimina modello</button>
+                <form method="post" action="{{ url_for('admin_delete', product_id=product.id) }}" onsubmit="return confirm('Eliminare definitivamente il modello e tutte le sue foto? Questa operazione non può essere annullata.');">
+                    <button type="submit" class="btn-danger">Elimina definitivamente modello e foto</button>
                 </form>
             </div>
+            <form method="post" action="{{ url_for('admin_remove_model', product_id=product.id) }}" class="remove-model-form" onsubmit="return confirm('Rimuovere solo il nome del modello? Le foto non saranno eliminate e resteranno visibili nella micro-categoria.');">
+                <button type="submit" class="btn-secondary">Rimuovi solo il modello e conserva le foto</button>
+            </form>
+            <label class="admin-product-select">
+                <input type="checkbox" name="product_ids" value="{{ product.id }}" form="bulk-model-delete" data-product-selection>
+                Seleziona questo modello per l'eliminazione
+            </label>
+            <label class="admin-product-select">
+                <input type="checkbox" name="source_ids" value="{{ product.id }}" form="bulk-model-merge" data-model-merge-selection>
+                Seleziona questo modello per unirlo
+            </label>
+            <form method="post" action="{{ url_for('admin_rename_product', product_id=product.id) }}" class="rename-form rename-product-form">
+                <label>Nome modello
+                    <input type="text" name="name" value="{{ product.name }}" maxlength="255" required>
+                </label>
+                <button type="submit">Rinomina</button>
+            </form>
             <form method="post" action="{{ url_for('admin_assign_category', product_id=product.id) }}" class="product-category-form">
                 <label>Macro-categoria del modello
                     <select name="category_id" class="move-model-category">
@@ -188,12 +239,20 @@
                 <button type="submit">Sposta modello</button>
             </form>
 
+            <form method="post" action="{{ url_for('admin_delete_selected_images', product_id=product.id) }}" class="bulk-image-delete-form" id="bulk-image-delete-{{ product.id }}" data-bulk-delete-form>
+                <span data-selection-summary>Seleziona le foto da eliminare</span>
+                <button type="submit" class="btn-image-delete" disabled>Elimina selezionate</button>
+            </form>
             <div class="admin-image-grid">
                 {% for image in product.images %}
                 <div class="admin-image">
                     <img src="{{ url_for('static', filename='uploads/' ~ image.filename) }}" alt="{{ product.name }} - foto {{ loop.index }}" loading="lazy">
                     <div class="admin-image-actions">
                         <span>Foto {{ loop.index }}{% if loop.first %} &middot; copertina{% endif %}</span>
+                        <label class="admin-image-select">
+                            <input type="checkbox" name="image_ids" value="{{ image.id }}" form="bulk-image-delete-{{ product.id }}" data-image-selection>
+                            Seleziona
+                        </label>
                         <form method="post" action="{{ url_for('admin_delete_image', image_id=image.id) }}" onsubmit="return confirm('Eliminare solo questa foto?');">
                             <button type="submit" class="btn-image-delete" {% if product.images|length == 1 %}disabled title="Non puoi eliminare l'ultima foto"{% endif %}>Elimina foto</button>
                         </form>
@@ -206,6 +265,32 @@
     </div>
     {% endif %}
 </section>
+
+<section class="admin-list" id="foto-senza-modello">
+    <h2>Foto senza modello ({{ photo_containers|length }})</h2>
+    <p>Gestisci le immagini caricate direttamente nelle micro-categorie.</p>
+    {% if not photo_containers %}
+    <p>Nessuna foto senza modello ancora.</p>
+    {% else %}
+    <div class="admin-products">
+        {% for product in photo_containers %}
+        <article class="admin-product">
+            <div class="admin-product-header">
+                <div>
+                    <h3>{{ product.subcategory.name if product.subcategory else product.name }}</h3>
+                    <p>{{ product.category.name if product.category else 'Senza macro-categoria' }} &middot; {{ photo_container_image_counts[product.id] }} foto</p>
+                </div>
+                <form method="post" action="{{ url_for('admin_delete', product_id=product.id) }}" onsubmit="return confirm('Eliminare definitivamente tutte le foto di questa micro-categoria? Questa operazione non può essere annullata.');">
+                    <button type="submit" class="btn-danger">Elimina tutte le foto</button>
+                </form>
+            </div>
+            <a href="{{ url_for('admin_manage_unmodeled_photos', product_id=product.id) }}" class="btn-secondary">Gestisci foto</a>
+        </article>
+        {% endfor %}
+    </div>
+    {% endif %}
+</section>
+
 <script>
     (() => {
         const pickers = document.getElementById("folder-pickers");
@@ -246,7 +331,7 @@
 
         function updateFolderModelOptions() {
             const subcategoryId = folderSubcategory.value;
-            let hasModels = false;
+            const hasSubcategory = Boolean(subcategoryId);
             Array.from(folderModel.options).forEach((option, index) => {
                 if (index === 0) {
                     return;
@@ -255,14 +340,13 @@
                 option.hidden = !visible;
                 option.disabled = !visible;
                 if (visible) {
-                    hasModels = true;
                 }
             });
             folderModel.value = "";
-            folderModel.disabled = !hasModels;
-            folderModel.options[0].text = hasModels
-                ? "Seleziona il modello"
-                : "Nessun modello in questa micro-categoria";
+            folderModel.disabled = !hasSubcategory;
+            folderModel.options[0].text = hasSubcategory
+                ? "Nessun modello: importa nella micro-categoria"
+                : "Prima seleziona una micro-categoria";
         }
 
         folderSubcategory.addEventListener("change", updateFolderModelOptions);
@@ -439,6 +523,85 @@
                 submitButton.disabled = false;
                 addButton.disabled = false;
             }
+        });
+
+        document.querySelectorAll("[data-bulk-delete-form]").forEach((form) => {
+            const selections = document.querySelectorAll(
+                `[data-image-selection][form="${form.id}"]`
+            );
+            const submitButton = form.querySelector('button[type="submit"]');
+            const summary = form.querySelector("[data-selection-summary]");
+
+            function updateSelection() {
+                const selected = Array.from(selections).filter((input) => input.checked).length;
+                submitButton.disabled = selected === 0;
+                summary.textContent = selected
+                    ? `${selected} foto selezionate`
+                    : "Seleziona le foto da eliminare";
+            }
+
+            selections.forEach((input) => input.addEventListener("change", updateSelection));
+            form.addEventListener("submit", (event) => {
+                const selected = Array.from(selections).filter((input) => input.checked).length;
+                if (!selected || !window.confirm(`Eliminare ${selected} foto selezionate?`)) {
+                    event.preventDefault();
+                }
+            });
+        });
+
+        document.querySelectorAll("[data-bulk-model-delete-form]").forEach((form) => {
+            const selections = document.querySelectorAll(
+                `[data-product-selection][form="${form.id}"]`
+            );
+            const submitButton = form.querySelector('button[type="submit"]');
+            const summary = form.querySelector("[data-model-selection-summary]");
+
+            function updateModelSelection() {
+                const selected = Array.from(selections).filter((input) => input.checked).length;
+                submitButton.disabled = selected === 0;
+                summary.textContent = selected
+                    ? `${selected} modelli selezionati`
+                    : "Seleziona i modelli da eliminare";
+            }
+
+            selections.forEach((input) => input.addEventListener("change", updateModelSelection));
+            form.addEventListener("submit", (event) => {
+                const selected = Array.from(selections).filter((input) => input.checked).length;
+                if (!selected || !window.confirm(`Eliminare ${selected} modelli e tutte le relative foto?`)) {
+                    event.preventDefault();
+                }
+            });
+        });
+
+        document.querySelectorAll("[data-bulk-model-merge-form]").forEach((form) => {
+            const selections = document.querySelectorAll(
+                `[data-model-merge-selection][form="${form.id}"]`
+            );
+            const destination = form.elements.destination_id;
+            const submitButton = form.querySelector('button[type="submit"]');
+            const summary = form.querySelector("[data-model-merge-summary]");
+
+            function updateMergeSelection() {
+                const selected = Array.from(selections).filter((input) => input.checked).length;
+                submitButton.disabled = !selected || !destination.value;
+                summary.textContent = selected
+                    ? `${selected} modelli da unire`
+                    : "Seleziona i modelli da unire";
+            }
+
+            selections.forEach((input) => input.addEventListener("change", updateMergeSelection));
+            destination.addEventListener("change", updateMergeSelection);
+            form.addEventListener("submit", (event) => {
+                const selected = Array.from(selections).filter((input) => input.checked);
+                if (
+                    !selected.length
+                    || !destination.value
+                    || selected.some((input) => input.value === destination.value)
+                    || !window.confirm(`Unire ${selected.length} modelli nel modello selezionato? Le foto e le gallerie saranno conservate.`)
+                ) {
+                    event.preventDefault();
+                }
+            });
         });
     })();
 </script>

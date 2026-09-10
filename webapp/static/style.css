@@ -356,6 +356,20 @@ h2 { font-size: clamp(1.6rem, 3vw, 2.25rem); }
 
 .catalog-menu-models a:hover { background: #1b1814; color: var(--gold-light); }
 
+.catalog-menu-subcategory {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-top: 1px solid #302b25;
+    padding: 8px 10px;
+    color: var(--muted);
+    font-size: 0.8rem;
+    text-decoration: none;
+}
+
+.catalog-menu-subcategory span { color: var(--gold); font-size: 0.68rem; }
+.catalog-menu-subcategory:hover { background: #1b1814; color: var(--gold-light); }
+
 .catalog-menu-model {
     border-top: 1px solid #302b25;
 }
@@ -375,7 +389,6 @@ h2 { font-size: clamp(1.6rem, 3vw, 2.25rem); }
 }
 
 .catalog-menu-model[open] > summary::after { content: "−"; }
-.catalog-menu-model > summary span { color: var(--gold); font-size: 0.68rem; }
 
 .catalog-menu-files {
     display: grid;
@@ -930,6 +943,22 @@ button:hover { background: var(--gold-light); }
 
 .category-form button { flex: 0 0 auto; }
 
+.category-behavior-toggle {
+    display: inline-flex;
+    flex: 0 1 auto;
+    align-items: center;
+    gap: 6px;
+    color: var(--muted);
+    font-size: 0.72rem;
+    cursor: pointer;
+}
+
+.category-behavior-toggle input {
+    width: auto;
+    margin: 0;
+    accent-color: var(--gold);
+}
+
 .admin-category-list { display: flex; flex-wrap: wrap; gap: 10px; }
 
 .admin-category-chip {
@@ -950,6 +979,71 @@ button:hover { background: var(--gold-light); }
 .admin-category-chip a span { margin-left: 4px; color: var(--gold); font-size: 0.68rem; }
 .admin-category-chip form { margin: 0; }
 
+.rename-form {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+}
+
+.rename-form input {
+    min-width: 0;
+    padding: 6px 9px;
+    border: 0;
+    border-left: 1px solid #4b4134;
+    border-radius: 0;
+    background: transparent;
+    font-size: 0.75rem;
+}
+
+.rename-form button {
+    min-height: 29px;
+    padding: 5px 8px;
+    border: 0;
+    border-radius: 99px;
+    background: transparent;
+    color: var(--gold-light);
+    font-size: 0.59rem;
+}
+
+.rename-form button:hover { background: rgba(216, 173, 99, 0.15); }
+
+.rename-form .category-behavior-toggle {
+    padding: 0 4px;
+    color: var(--muted);
+    font-size: 0.62rem;
+    white-space: nowrap;
+}
+
+.rename-product-form {
+    margin: -4px 0 20px;
+    padding: 13px;
+    border: 1px solid #302b25;
+    background: #0b0a09;
+}
+
+.rename-product-form label {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 5px;
+    color: var(--muted);
+    font-size: 0.67rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.rename-product-form input {
+    padding: 10px 11px;
+    border: 1px solid #4c443a;
+    border-radius: 3px;
+    background: #0c0b0a;
+    font-size: 0.84rem;
+}
+
+.rename-product-form button { min-height: 42px; padding: 10px 14px; border-radius: 3px; }
+
 .btn-category-delete {
     width: 27px;
     min-height: 27px;
@@ -968,6 +1062,44 @@ button:hover { background: var(--gold-light); }
 .admin-upload h2 { margin-bottom: 6px; }
 .admin-list > h2 { margin-bottom: 24px; }
 .admin-products { display: grid; gap: 26px; }
+
+.bulk-model-delete-form {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 0 0 16px;
+    padding: 12px 14px;
+    border: 1px solid #51332f;
+    background: #170d0c;
+}
+
+.bulk-model-delete-form span { color: #e4a29b; font-size: 0.78rem; }
+
+.bulk-model-merge-form {
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) 1fr auto;
+    align-items: end;
+    gap: 12px;
+    margin: 0 0 16px;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    background: #100f0d;
+}
+
+.bulk-model-merge-form label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    color: var(--muted);
+    font-size: 0.67rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.bulk-model-merge-form select { padding: 9px 10px; font-size: 0.86rem; }
+.bulk-model-merge-form span { color: var(--gold-light); font-size: 0.78rem; }
 
 .admin-product {
     padding: clamp(18px, 3vw, 28px);
@@ -989,6 +1121,18 @@ button:hover { background: var(--gold-light); }
 .admin-product-header h3 a { color: var(--ivory); text-decoration: none; }
 .admin-product-header h3 a:hover { color: var(--gold-light); }
 .admin-product-header p { margin: 0; color: var(--muted); font-size: 0.85rem; }
+
+.admin-product-select {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: -9px 0 16px;
+    color: var(--gold-light);
+    font-size: 0.74rem;
+    cursor: pointer;
+}
+
+.admin-product-select input { width: auto; margin: 0; accent-color: var(--gold); }
 
 .product-category-form {
     display: flex;
@@ -1031,6 +1175,19 @@ button:hover { background: var(--gold-light); }
     gap: 14px;
 }
 
+.bulk-image-delete-form {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin: -4px 0 14px;
+    padding: 10px 12px;
+    border: 1px solid #302b25;
+    background: #0b0a09;
+}
+
+.bulk-image-delete-form span { color: var(--muted); font-size: 0.76rem; }
+
 .admin-image {
     overflow: hidden;
     border: 1px solid #302b25;
@@ -1055,6 +1212,17 @@ button:hover { background: var(--gold-light); }
 
 .admin-image-actions span { color: var(--muted); font-size: 0.72rem; }
 .admin-image-actions form { margin: 0; }
+
+.admin-image-select {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--gold-light);
+    font-size: 0.67rem;
+    cursor: pointer;
+}
+
+.admin-image-select input { width: auto; margin: 0; accent-color: var(--gold); }
 
 .btn-image-delete {
     min-height: 30px;
@@ -1142,6 +1310,8 @@ button:hover { background: var(--gold-light); }
     .category-form button { width: 100%; }
     .product-category-form { align-items: stretch; flex-direction: column; }
     .product-category-form button { width: 100%; }
+    .bulk-model-merge-form { grid-template-columns: 1fr; align-items: stretch; }
+    .bulk-model-merge-form button { width: 100%; }
     .admin-product-header form, .admin-product-header .btn-danger { width: 100%; }
     .admin-image-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .admin-image img { height: 140px; }

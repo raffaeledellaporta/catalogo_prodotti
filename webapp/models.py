@@ -13,6 +13,7 @@ class Category(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), unique=True, nullable=False)
     slug = db.Column(db.String(120), unique=True, nullable=False, index=True)
+    direct_subcategory_access = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     products = db.relationship("Product", back_populates="category")
@@ -49,6 +50,7 @@ class Product(db.Model):
     subcategory_id = db.Column(
         db.Integer, db.ForeignKey("subcategories.id"), nullable=True, index=True
     )
+    is_model = db.Column(db.Boolean, default=True, nullable=False, index=True)
 
     category = db.relationship("Category", back_populates="products")
     subcategory = db.relationship("Subcategory", back_populates="products")

@@ -28,6 +28,8 @@ from models import Category, Product, ProductAlbum, ProductImage, Subcategory, d
 
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 THUMBNAIL_SIZES = {640, 1280}
+WEBP_MAX_DIMENSION = 1_600
+WEBP_QUALITY = 82
 TITLE_CODE_SUFFIX = re.compile(
     r"\s*(?:style\s*)?code(?:\s*[:#-]?\s*[A-Za-z0-9]+(?:-[A-Za-z0-9]*)*)?\s*$",
     re.IGNORECASE,
@@ -69,6 +71,7 @@ def create_app(config_class=Config) -> Flask:
         db.create_all()
         _ensure_database_columns(app)
         _normalize_existing_product_titles()
+        _convert_existing_images_to_webp(app)
 
     @app.errorhandler(RequestEntityTooLarge)
     def handle_request_entity_too_large(error):
@@ -111,7 +114,7 @@ def create_app(config_class=Config) -> Flask:
             joinedload(Product.subcategory),
             selectinload(Product.albums).selectinload(ProductAlbum.images),
             selectinload(Product.images),
-        )
+        ).filter(Product.is_model.is_(True))
         search_query = request.args.get("q", "").strip()
         page = max(request.args.get("page", 1, type=int), 1)
 
@@ -139,9 +142,24 @@ def create_app(config_class=Config) -> Flask:
                 per_page=app.config["PRODUCTS_PER_PAGE"],
                 error_out=False,
             )
+        unmodeled_products = []
+        if subcategory:
+            unmodeled_products = (
+                Product.query.options(
+                    selectinload(Product.albums).selectinload(ProductAlbum.images),
+                    selectinload(Product.images),
+                )
+                .filter_by(
+                    category_id=category.id,
+                    subcategory_id=subcategory.id,
+                    is_model=False,
+                )
+                .all()
+            )
         return render_template(
             "index.html",
             products=products,
+            unmodeled_products=unmodeled_products,
             search_query=search_query,
             selected_category=category,
             selected_subcategory=subcategory,
@@ -156,7 +174,7 @@ def create_app(config_class=Config) -> Flask:
                 selectinload(Product.albums).selectinload(ProductAlbum.images),
                 selectinload(Product.images),
             )
-            .filter_by(slug=slug)
+            .filter_by(slug=slug, is_model=True)
             .first_or_404()
         )
         return render_template("product.html", product=product)
@@ -227,11 +245,26 @@ def create_app(config_class=Config) -> Flask:
                 flash(f"Prodotto '{name}' pubblicato con successo.", "success")
                 return redirect(url_for("admin_upload"))
 
-        products = Product.query.order_by(Product.created_at.desc()).all()
+        products = (
+            Product.query.filter(Product.is_model.is_(True))
+            .order_by(Product.created_at.desc())
+            .all()
+        )
+        photo_containers = (
+            Product.query.filter(Product.is_model.is_(False))
+            .order_by(Product.created_at.desc())
+            .all()
+        )
+        photo_container_image_counts = {
+            product.id: ProductImage.query.filter_by(product_id=product.id).count()
+            for product in photo_containers
+        }
         categories = Category.query.order_by(Category.name.asc()).all()
         return render_template(
             "admin.html",
             products=products,
+            photo_containers=photo_containers,
+            photo_container_image_counts=photo_container_image_counts,
             categories=categories,
             subcategory_count=sum(len(category.subcategories) for category in categories),
         )
@@ -241,15 +274,52 @@ def create_app(config_class=Config) -> Flask:
     def admin_create_category():
         name = request.form.get("name", "").strip()
         slug = _slugify(name)
+        direct_subcategory_access = (
+            request.form.get("direct_subcategory_access") == "1"
+        )
 
         if not name:
             flash("Inserisci il nome della categoria.", "error")
         elif Category.query.filter_by(slug=slug).first():
             flash("Questa categoria esiste già.", "error")
         else:
-            db.session.add(Category(name=name, slug=slug))
+            db.session.add(
+                Category(
+                    name=name,
+                    slug=slug,
+                    direct_subcategory_access=direct_subcategory_access,
+                )
+            )
             db.session.commit()
             flash(f"Categoria '{name}' creata.", "success")
+
+        return redirect(url_for("admin_upload", _anchor="categorie"))
+
+    @app.route("/admin/categorie/<int:category_id>", methods=["POST"])
+    @login_required
+    def admin_rename_category(category_id):
+        category = db.session.get(Category, category_id)
+        if category is None:
+            abort(404)
+
+        name = _display_name(request.form.get("name", ""))
+        slug = _slugify(name)
+        direct_subcategory_access = (
+            request.form.get("direct_subcategory_access") == "1"
+        )
+        duplicate = Category.query.filter(
+            Category.slug == slug, Category.id != category.id
+        ).first()
+        if not name:
+            flash("Inserisci il nome della macro-categoria.", "error")
+        elif duplicate:
+            flash("Esiste già una macro-categoria con questo nome.", "error")
+        else:
+            category.name = name
+            category.slug = slug
+            category.direct_subcategory_access = direct_subcategory_access
+            db.session.commit()
+            flash("Macro-categoria aggiornata.", "success")
 
         return redirect(url_for("admin_upload", _anchor="categorie"))
 
@@ -299,15 +369,44 @@ def create_app(config_class=Config) -> Flask:
         if category is None:
             flash("Seleziona la categoria della sottocategoria.", "error")
         elif not name:
-            flash("Inserisci il nome del modello.", "error")
+            flash("Inserisci il nome della micro-categoria.", "error")
         else:
             slug = _slugify(name)
             if Subcategory.query.filter_by(category_id=category.id, slug=slug).first():
-                flash("Questo modello esiste già nella categoria selezionata.", "error")
+                flash("Questa micro-categoria esiste già nella macro-categoria selezionata.", "error")
             else:
                 db.session.add(Subcategory(name=name, slug=slug, category=category))
                 db.session.commit()
-                flash(f"Modello '{name}' creato in '{category.name}'.", "success")
+                flash(f"Micro-categoria '{name}' creata in '{category.name}'.", "success")
+        return redirect(url_for("admin_upload", _anchor="sottocategorie"))
+
+    @app.route("/admin/sottocategorie/<int:subcategory_id>", methods=["POST"])
+    @login_required
+    def admin_rename_subcategory(subcategory_id):
+        subcategory = db.session.get(Subcategory, subcategory_id)
+        if subcategory is None:
+            abort(404)
+
+        name = _display_name(request.form.get("name", ""))
+        slug = _slugify(name)
+        duplicate = Subcategory.query.filter(
+            Subcategory.category_id == subcategory.category_id,
+            Subcategory.slug == slug,
+            Subcategory.id != subcategory.id,
+        ).first()
+        if not name:
+            flash("Inserisci il nome della micro-categoria.", "error")
+        elif duplicate:
+            flash(
+                "Esiste già una micro-categoria con questo nome nella macro-categoria scelta.",
+                "error",
+            )
+        else:
+            subcategory.name = name
+            subcategory.slug = slug
+            db.session.commit()
+            flash("Micro-categoria rinominata.", "success")
+
         return redirect(url_for("admin_upload", _anchor="sottocategorie"))
 
     @app.route("/admin/sottocategorie/<int:subcategory_id>/elimina", methods=["POST"])
@@ -322,7 +421,7 @@ def create_app(config_class=Config) -> Flask:
         db.session.delete(subcategory)
         db.session.commit()
         flash(
-            f"Modello eliminato. {product_count} prodotti restano nella categoria principale.",
+            f"Micro-categoria eliminata. {product_count} prodotti restano nella macro-categoria.",
             "success",
         )
         return redirect(url_for("admin_upload", _anchor="sottocategorie"))
@@ -371,6 +470,52 @@ def create_app(config_class=Config) -> Flask:
             flash(f"Categoria rimossa da '{product.name}'.", "success")
         return redirect(url_for("admin_upload", _anchor=f"product-{product.id}"))
 
+    @app.route("/admin/prodotti/<int:product_id>", methods=["POST"])
+    @login_required
+    def admin_rename_product(product_id):
+        product = db.session.get(Product, product_id)
+        if product is None:
+            abort(404)
+
+        name = _clean_product_title(request.form.get("name", ""))
+        slug = _slugify(name)
+        duplicate = Product.query.filter(
+            Product.slug == slug, Product.id != product.id
+        ).first()
+        if not name:
+            flash("Inserisci il nome del modello.", "error")
+        elif duplicate:
+            flash("Esiste già un modello con questo nome.", "error")
+        else:
+            product.name = name
+            product.slug = slug
+            db.session.commit()
+            flash("Modello rinominato.", "success")
+
+        return redirect(url_for("admin_upload", _anchor=f"product-{product.id}"))
+
+    @app.route("/admin/prodotti/<int:product_id>/rimuovi-modello", methods=["POST"])
+    @login_required
+    def admin_remove_model(product_id):
+        product = (
+            Product.query.filter(
+                Product.id == product_id, Product.is_model.is_(True)
+            ).first_or_404()
+        )
+        if product.subcategory is None:
+            flash(
+                "Assegna prima il modello a una micro-categoria per conservarne le foto.",
+                "error",
+            )
+        else:
+            product.is_model = False
+            db.session.commit()
+            flash(
+                f"Il modello non è stato eliminato: le foto restano nella micro-categoria '{product.subcategory.name}'.",
+                "success",
+            )
+        return redirect(url_for("admin_upload", _anchor="modelli"))
+
     @app.route("/admin/importa-cartelle", methods=["POST"])
     @login_required
     def admin_import_folders():
@@ -383,10 +528,21 @@ def create_app(config_class=Config) -> Flask:
             return redirect(url_for("admin_upload", _anchor="importa-cartelle"))
 
         subcategory = _validate_subcategory(category, subcategory_id)
+        if subcategory is None:
+            flash("Seleziona una micro-categoria per importare le immagini.", "error")
+            return redirect(url_for("admin_upload", _anchor="importa-cartelle"))
+
         model = db.session.get(Product, model_id) if model_id else None
-        if model is None or model.category_id != category.id or model.subcategory_id != subcategory.id:
+        if model_id and (
+            model is None
+            or not model.is_model
+            or model.category_id != category.id
+            or model.subcategory_id != subcategory.id
+        ):
             flash("Seleziona un modello della micro-categoria scelta.", "error")
             return redirect(url_for("admin_upload", _anchor="importa-cartelle"))
+        if model is None:
+            model = _get_or_create_photo_container(category, subcategory)
 
         files = _image_files(request.files.getlist("folders"))
         if not files:
@@ -407,7 +563,7 @@ def create_app(config_class=Config) -> Flask:
                 folder_files,
             )
         flash(
-            f"Importate {len(files_by_folder)} cartelle e {len(files)} immagini nel modello '{model.name}'. "
+            f"Importate {len(files_by_folder)} cartelle e {len(files)} immagini in '{model.name}'. "
             "Le cartelle con lo stesso nome sono state unite nello stesso album.",
             "success",
         )
@@ -422,21 +578,81 @@ def create_app(config_class=Config) -> Flask:
         db.session.delete(product)
         db.session.commit()
         _remove_empty_product_directory(app, product.slug)
-        flash("Prodotto eliminato.", "success")
+        flash("Modello e relative foto eliminati definitivamente.", "success")
         return redirect(url_for("admin_upload"))
+
+    @app.route("/admin/prodotti/elimina", methods=["POST"])
+    @login_required
+    def admin_delete_selected_products():
+        selected_ids = set(request.form.getlist("product_ids", type=int))
+        if not selected_ids:
+            flash("Seleziona almeno un modello da eliminare.", "error")
+            return redirect(url_for("admin_upload", _anchor="modelli"))
+
+        products = Product.query.filter(Product.id.in_(selected_ids)).all()
+        if len(products) != len(selected_ids):
+            abort(400, "I modelli selezionati non sono validi.")
+
+        product_slugs = []
+        for product in products:
+            for image in product.images:
+                _delete_uploaded_file(app, image.filename)
+            product_slugs.append(product.slug)
+            db.session.delete(product)
+
+        db.session.commit()
+        for slug in product_slugs:
+            _remove_empty_product_directory(app, slug)
+        flash(f"Eliminati {len(products)} modelli selezionati.", "success")
+        return redirect(url_for("admin_upload", _anchor="modelli"))
+
+    @app.route("/admin/prodotti/unisci", methods=["POST"])
+    @login_required
+    def admin_merge_products():
+        destination_id = request.form.get("destination_id", type=int)
+        source_ids = set(request.form.getlist("source_ids", type=int))
+        if destination_id is None:
+            flash("Seleziona il modello in cui unire le foto.", "error")
+            return redirect(url_for("admin_upload", _anchor="modelli"))
+        if not source_ids:
+            flash("Seleziona almeno un modello da unire.", "error")
+            return redirect(url_for("admin_upload", _anchor="modelli"))
+        if destination_id in source_ids:
+            flash("Il modello di destinazione non può essere incluso tra quelli da unire.", "error")
+            return redirect(url_for("admin_upload", _anchor="modelli"))
+
+        destination = Product.query.filter(
+            Product.id == destination_id, Product.is_model.is_(True)
+        ).first()
+        sources = Product.query.filter(
+            Product.id.in_(source_ids), Product.is_model.is_(True)
+        ).all()
+        if destination is None or len(sources) != len(source_ids):
+            abort(400, "I modelli selezionati non sono validi.")
+
+        for source in sources:
+            _merge_product_into(destination, source)
+
+        db.session.commit()
+        flash(
+            f"Uniti {len(sources)} modelli in '{destination.name}'. Tutte le foto e gallerie sono state conservate.",
+            "success",
+        )
+        return redirect(url_for("admin_upload", _anchor=f"product-{destination.id}"))
 
     @app.route("/admin/immagini/<int:image_id>/elimina", methods=["POST"])
     @login_required
     def admin_delete_image(image_id):
         image = ProductImage.query.get_or_404(image_id)
         product = image.product
+        page = max(request.form.get("page", 1, type=int), 1)
 
         if len(product.images) <= 1:
             flash(
-                "Non puoi eliminare l'ultima foto: elimina il prodotto completo oppure aggiungi prima un'altra immagine.",
+                "Non puoi eliminare l'ultima foto: elimina tutte le foto oppure aggiungi prima un'altra immagine.",
                 "error",
             )
-            return redirect(url_for("admin_upload", _anchor=f"product-{product.id}"))
+            return _admin_product_redirect(product, page)
 
         _delete_uploaded_file(app, image.filename)
         product.images.remove(image)
@@ -446,7 +662,72 @@ def create_app(config_class=Config) -> Flask:
 
         db.session.commit()
         flash(f"Foto rimossa da '{product.name}'.", "success")
-        return redirect(url_for("admin_upload", _anchor=f"product-{product.id}"))
+        return _admin_product_redirect(product, page)
+
+    @app.route("/admin/prodotti/<int:product_id>/immagini/elimina", methods=["POST"])
+    @login_required
+    def admin_delete_selected_images(product_id):
+        product = Product.query.get_or_404(product_id)
+        selected_ids = set(request.form.getlist("image_ids", type=int))
+        page = max(request.form.get("page", 1, type=int), 1)
+        if not selected_ids:
+            flash("Seleziona almeno una foto da eliminare.", "error")
+            return _admin_product_redirect(product, page)
+
+        selected_images = [
+            image for image in product.images if image.id in selected_ids
+        ]
+        if len(selected_images) != len(selected_ids):
+            abort(400, "Le foto selezionate non appartengono a questo modello.")
+        if len(selected_images) >= len(product.images):
+            flash(
+                "Devi lasciare almeno una foto. Per eliminarle tutte usa 'Elimina tutte le foto'.",
+                "error",
+            )
+            return _admin_product_redirect(product, page)
+
+        selected_album_ids = {image.album_id for image in selected_images if image.album_id}
+        for image in selected_images:
+            _delete_uploaded_file(app, image.filename)
+            db.session.delete(image)
+
+        for position, image in enumerate(
+            (image for image in product.images if image.id not in selected_ids),
+            start=1,
+        ):
+            image.position = position
+
+        db.session.flush()
+        for album_id in selected_album_ids:
+            if not ProductImage.query.filter_by(album_id=album_id).first():
+                album = db.session.get(ProductAlbum, album_id)
+                if album is not None:
+                    db.session.delete(album)
+
+        db.session.commit()
+        flash(f"Eliminate {len(selected_images)} foto da '{product.name}'.", "success")
+        return _admin_product_redirect(product, page)
+
+    @app.route("/admin/foto-senza-modello/<int:product_id>")
+    @login_required
+    def admin_manage_unmodeled_photos(product_id):
+        product = (
+            Product.query.options(joinedload(Product.category), joinedload(Product.subcategory))
+            .filter(Product.id == product_id, Product.is_model.is_(False))
+            .first_or_404()
+        )
+        page = max(request.args.get("page", 1, type=int), 1)
+        images = (
+            ProductImage.query.options(joinedload(ProductImage.album))
+            .filter_by(product_id=product.id)
+            .order_by(ProductImage.position.asc(), ProductImage.id.asc())
+            .paginate(page=page, per_page=100, error_out=False)
+        )
+        return render_template(
+            "admin_photo_container.html",
+            product=product,
+            images=images,
+        )
 
     # ------------------------------------------------------------------
     # API per upload automatico dallo script locale (scraper + pulizia)
@@ -545,8 +826,7 @@ def _create_or_update_product(
             # Rimuoviamo le immagini precedenti per sostituirle con quelle
             # nuove appena ricevute.
             for old_image in list(product.images):
-                old_path = Path(app.config["UPLOAD_FOLDER"]) / old_image.filename
-                old_path.unlink(missing_ok=True)
+                _delete_uploaded_file(app, old_image.filename)
                 db.session.delete(old_image)
             product.images = []
 
@@ -557,11 +837,8 @@ def _create_or_update_product(
 
     first_position = len(product.images) + 1
     for i, file in enumerate(files, start=first_position):
-        ext = Path(secure_filename(file.filename)).suffix.lower()
-        if ext not in ALLOWED_EXTENSIONS:
-            ext = ".jpg"
-        filename = f"{i:03d}{ext}"
-        file.save(product_dir / filename)
+        filename = f"{i:03d}.webp"
+        _save_uploaded_image_as_webp(file, product_dir / filename)
 
         db.session.add(
             ProductImage(
@@ -584,6 +861,15 @@ def _delete_uploaded_file(app, filename: str) -> None:
         return
 
     file_path.unlink(missing_ok=True)
+    relative_path = file_path.relative_to(upload_folder)
+    for size in THUMBNAIL_SIZES:
+        thumbnail_path = (
+            upload_folder
+            / ".thumbnails"
+            / relative_path.parent
+            / f"{file_path.stem}-{size}.webp"
+        )
+        thumbnail_path.unlink(missing_ok=True)
 
 
 def _remove_empty_product_directory(app, slug: str) -> None:
@@ -599,6 +885,7 @@ def _ensure_database_columns(app) -> None:
     required_product_columns = {
         "category_id": "INTEGER",
         "subcategory_id": "INTEGER",
+        "is_model": "INTEGER NOT NULL DEFAULT 1",
     }
     for column_name, column_type in required_product_columns.items():
         if column_name in product_columns:
@@ -608,6 +895,23 @@ def _ensure_database_columns(app) -> None:
                 db.text(f"ALTER TABLE products ADD COLUMN {column_name} {column_type}")
             )
         app.logger.info("Aggiunta colonna %s alla tabella products.", column_name)
+
+    category_columns = {column["name"] for column in inspector.get_columns("categories")}
+    if "direct_subcategory_access" not in category_columns:
+        with db.engine.begin() as connection:
+            connection.execute(
+                db.text(
+                    "ALTER TABLE categories ADD COLUMN "
+                    "direct_subcategory_access INTEGER NOT NULL DEFAULT 0"
+                )
+            )
+            connection.execute(
+                db.text(
+                    "UPDATE categories SET direct_subcategory_access = 1 "
+                    "WHERE slug = 'scarpe-adidas'"
+                )
+            )
+        app.logger.info("Aggiunta impostazione accesso diretto alle micro-categorie.")
 
     image_columns = {column["name"] for column in inspector.get_columns("product_images")}
     if "album_id" not in image_columns:
@@ -623,8 +927,74 @@ def _validate_subcategory(
         return None
     subcategory = db.session.get(Subcategory, subcategory_id)
     if subcategory is None or category is None or subcategory.category_id != category.id:
-        abort(400, "Modello non valido per la categoria selezionata.")
+        abort(400, "Micro-categoria non valida per la macro-categoria selezionata.")
     return subcategory
+
+
+def _get_or_create_photo_container(
+    category: Category, subcategory: Subcategory
+) -> Product:
+    """Restituisce il contenitore invisibile delle foto caricate senza modello."""
+    product = Product.query.filter_by(
+        category_id=category.id,
+        subcategory_id=subcategory.id,
+        is_model=False,
+    ).first()
+    if product is not None:
+        return product
+
+    name = f"Foto {category.name} {subcategory.name}"
+    base_slug = _slugify(f"foto-{category.slug}-{subcategory.slug}")
+    slug = base_slug
+    suffix = 2
+    while Product.query.filter_by(slug=slug).first():
+        slug = f"{base_slug}-{suffix}"
+        suffix += 1
+    product = Product(
+        name=name,
+        slug=slug,
+        category=category,
+        subcategory=subcategory,
+        is_model=False,
+    )
+    db.session.add(product)
+    db.session.flush()
+    return product
+
+
+def _merge_product_into(destination: Product, source: Product) -> None:
+    """Trasferisce immagini e album nel modello di destinazione."""
+    for source_album in list(source.albums):
+        destination_album = ProductAlbum.query.filter_by(
+            product_id=destination.id, slug=source_album.slug
+        ).first()
+        if destination_album is None:
+            source_album.product = destination
+            continue
+
+        next_position = max(
+            (image.position for image in destination_album.images),
+            default=0,
+        )
+        for image in list(source_album.images):
+            next_position += 1
+            image.product = destination
+            image.album = destination_album
+            image.position = next_position
+
+    for image in list(source.images):
+        image.product = destination
+
+    db.session.flush()
+    db.session.delete(source)
+
+
+def _admin_product_redirect(product: Product, page: int):
+    if not product.is_model:
+        return redirect(
+            url_for("admin_manage_unmodeled_photos", product_id=product.id, page=page)
+        )
+    return redirect(url_for("admin_upload", _anchor=f"product-{product.id}"))
 
 
 def _image_files(files) -> list:
@@ -633,6 +1003,78 @@ def _image_files(files) -> list:
         for file in files
         if file and file.filename and Path(file.filename).suffix.lower() in ALLOWED_EXTENSIONS
     ]
+
+
+def _save_uploaded_image_as_webp(file, destination_path: Path) -> None:
+    """Ridimensiona e salva un upload come WebP ottimizzato per il sito."""
+    try:
+        file.stream.seek(0)
+        _save_image_as_webp(file.stream, destination_path)
+    except (Image.UnidentifiedImageError, OSError) as error:
+        raise ValueError(
+            f"Il file '{secure_filename(file.filename)}' non è un'immagine valida."
+        ) from error
+    finally:
+        file.stream.seek(0)
+
+
+def _save_image_as_webp(source, destination_path: Path) -> None:
+    """Crea un WebP atomico, orientato correttamente e adatto alla visualizzazione web."""
+    destination_path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path = destination_path.with_name(
+        f"{destination_path.name}.{uuid4().hex}.tmp"
+    )
+    try:
+        with Image.open(source) as image:
+            image = ImageOps.exif_transpose(image)
+            image.thumbnail(
+                (WEBP_MAX_DIMENSION, WEBP_MAX_DIMENSION),
+                Image.Resampling.LANCZOS,
+            )
+            if image.mode not in {"RGB", "RGBA"}:
+                image = image.convert("RGB")
+            image.save(temporary_path, "WEBP", quality=WEBP_QUALITY, method=6)
+        temporary_path.replace(destination_path)
+    finally:
+        temporary_path.unlink(missing_ok=True)
+
+
+def _convert_existing_images_to_webp(app) -> None:
+    """Migra una volta le immagini preesistenti al formato WebP."""
+    legacy_images = ProductImage.query.filter(
+        ~ProductImage.filename.ilike("%.webp")
+    ).all()
+    if not legacy_images:
+        return
+
+    upload_folder = Path(app.config["UPLOAD_FOLDER"]).resolve()
+    converted = 0
+    for image in legacy_images:
+        source_path = (upload_folder / image.filename).resolve()
+        if upload_folder not in source_path.parents or not source_path.is_file():
+            app.logger.error(
+                "Impossibile convertire l'immagine mancante o non valida: %s",
+                image.filename,
+            )
+            continue
+
+        destination_path = source_path.with_suffix(".webp")
+        try:
+            _save_image_as_webp(source_path, destination_path)
+        except (Image.UnidentifiedImageError, OSError) as error:
+            app.logger.error("Impossibile convertire %s: %s", image.filename, error)
+            continue
+
+        original_path = source_path
+        image.filename = (
+            Path(image.filename).with_suffix(".webp").as_posix()
+        )
+        original_path.unlink()
+        converted += 1
+
+    if converted:
+        db.session.commit()
+        app.logger.info("Convertite %s immagini esistenti in WebP.", converted)
 
 
 def _thumbnail_response(app, filename: str, size: int):
@@ -711,7 +1153,7 @@ def _normalize_existing_product_titles() -> None:
 
 
 def _create_or_update_album(app, product: Product, name: str, files) -> ProductAlbum:
-    """Aggiunge le immagini della cartella a un album del modello selezionato."""
+    """Aggiunge le immagini a un album del modello o della micro-categoria."""
     name = _clean_product_title(name)
     slug = _slugify(name)
     album = ProductAlbum.query.filter_by(product_id=product.id, slug=slug).first()
@@ -725,11 +1167,8 @@ def _create_or_update_album(app, product: Product, name: str, files) -> ProductA
 
     first_position = len(album.images) + 1
     for position, file in enumerate(files, start=first_position):
-        ext = Path(secure_filename(file.filename)).suffix.lower()
-        if ext not in ALLOWED_EXTENSIONS:
-            ext = ".jpg"
-        filename = f"{album.slug}-{position:03d}{ext}"
-        file.save(product_dir / filename)
+        filename = f"{album.slug}-{position:03d}.webp"
+        _save_uploaded_image_as_webp(file, product_dir / filename)
         db.session.add(
             ProductImage(
                 product=product,

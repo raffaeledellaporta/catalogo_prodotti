@@ -36,6 +36,14 @@
         {% block content %}{% endblock %}
     </main>
 
+    <dialog class="image-lightbox" aria-label="Galleria immagini">
+        <button class="lightbox-previous" type="button" data-lightbox-previous aria-label="Foto precedente">&#8592;</button>
+        <button class="lightbox-close" type="button" data-close-lightbox aria-label="Chiudi immagine">&times;</button>
+        <img src="" alt="">
+        <button class="lightbox-next" type="button" data-lightbox-next aria-label="Foto successiva">&#8594;</button>
+        <p class="lightbox-counter" data-lightbox-counter aria-live="polite"></p>
+    </dialog>
+
     <footer class="site-footer">
         <img src="{{ url_for('static', filename='logo-exclusive-gear.png') }}" alt="" aria-hidden="true">
         <p>&copy; {{ site_name }} &middot; Selezione esclusiva</p>
